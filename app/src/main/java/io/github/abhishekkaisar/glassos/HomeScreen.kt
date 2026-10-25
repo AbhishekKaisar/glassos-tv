@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -93,6 +94,8 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
     private var wallToken = 0
     private var appsToken = 0
     private var focusedOnce = false
+    /** Uptime of the last key this home received; see [KEY_FOCUS_MS]. */
+    private var lastKeyAt = 0L
     /** True while the window showing this home is in front (activity resumed, or the overlay shown). */
     var resumed = false
         set(v) { field = v; updateHeroRunning() }
@@ -271,7 +274,11 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
         root.addView(appMenu, FrameLayout.LayoutParams(-1, -1))
 
         root.viewTreeObserver.addOnGlobalFocusChangeListener { old, new ->
-            if (old != null && new != null && old !== new && prefs.sound && !FocusAnim.forceInstant) sound?.tick()
+            // Only a key moves focus audibly. A change no key caused (the app list reloaded, a window came back)
+            // is silent and lands without the spring, so a tile never seems to be focused again on its own.
+            val byKey = SystemClock.uptimeMillis() - lastKeyAt < KEY_FOCUS_MS
+            if (old != null && new != null && old !== new && byKey && prefs.sound && !FocusAnim.forceInstant) sound?.tick()
+            if (!byKey) { (old as? TileView)?.settleFocus(); (new as? TileView)?.settleFocus() }
             if (new === hero || old === hero) updateHeroRunning()
             if (::chevron.isInitialized) chevron.animate().alpha(if (new is TileView && (new.tag as? Int) == 0) 1f else 0f).setDuration(200).start()
             if (new is TileView) {
@@ -550,18 +557,26 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
     }
 
     private fun applyApps(list: List<AppEntry>) {
-        // The app list changed under a move (an install or uninstall): the move ends unsaved.
-        if (movingPkg != null) endMove()
-        if (appMenu.isOpen) appMenu.close()
         apps = list
         val visible = visibleApps()
         val shown = visible.map { it.pkg }.toSet()
         val wanted = prefs.dock ?: AppRepo.defaultDock(visible)
+        val dock = ArrayList(wanted.filter { it in shown }.distinct().take(COLS))
+        if (dock.isEmpty()) dock.addAll(AppRepo.defaultDock(visible))
+        val drawer = AppRepo.arrange(visible.filter { it.pkg !in dock }, prefs.order).map { it.pkg }
+        // Same apps in the same places (Fire OS sends package broadcasts that change nothing shown): refresh the
+        // tiles' art and labels in place. Rebuilding would remove the focused tile and focus it again.
+        if (dockTiles.isNotEmpty() && dock == dockPkgs && drawer == drawerPkgs) {
+            setLists(dock, drawer, refresh = true)
+            return
+        }
+        // The app list changed under a move (an install or uninstall): the move ends unsaved.
+        if (movingPkg != null) endMove()
+        if (appMenu.isOpen) appMenu.close()
         dockPkgs.clear()
-        dockPkgs.addAll(wanted.filter { it in shown }.distinct().take(COLS))
-        if (dockPkgs.isEmpty()) dockPkgs.addAll(AppRepo.defaultDock(visible))
+        dockPkgs.addAll(dock)
         drawerPkgs.clear()
-        drawerPkgs.addAll(AppRepo.arrange(visible.filter { it.pkg !in dockPkgs }, prefs.order).map { it.pkg })
+        drawerPkgs.addAll(drawer)
         rebuildGrid()
     }
 
@@ -616,9 +631,24 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
         content.addView(row, FrameLayout.LayoutParams(-1, padTop + tileH + ctx.dpi(60f)).apply { topMargin = rowTop(r) - padTop })
     }
 
-    /** Rebuilds every row. Keeps focus on [focusPkg] (or on whatever was focused) when possible. */
+    /**
+     * Rebuilds every row. Keeps focus on [focusPkg] (or on whatever was focused) when possible. Removing the rows
+     * hands focus to the hero for a moment before it comes back; unless the user chose [focusPkg], or this is the
+     * first focus of a home being built (off screen, in the overlay or before the activity shows), that happens
+     * with no sound and no animation.
+     */
     private fun rebuildGrid(focusPkg: String? = null) {
-        val keep = focusPkg ?: (focused() as? TileView)?.app?.pkg
+        val quiet = focusPkg == null || !focusedOnce
+        val was = FocusAnim.forceInstant
+        if (quiet) FocusAnim.forceInstant = true
+        try {
+            buildRows(focusPkg ?: (focused() as? TileView)?.app?.pkg)
+        } finally {
+            FocusAnim.forceInstant = was
+        }
+    }
+
+    private fun buildRows(keep: String?) {
         while (content.childCount > 1) content.removeViewAt(content.childCount - 1)
         dockTiles.clear()
         rows.clear()
@@ -772,15 +802,16 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
      * Puts new lists on screen. When the shelf and the drawer keep their sizes (a move within either, or a swap
      * across them) the tiles stay and only their apps change: no views are made or removed.
      */
-    private fun setLists(dock: List<String>, drawer: List<String>) {
+    private fun setLists(dock: List<String>, drawer: List<String>, refresh: Boolean = false) {
         val same = dock.size == dockPkgs.size && drawer.size == drawerPkgs.size && rows.size == 1 + (drawer.size + COLS - 1) / COLS
         dockPkgs.clear(); dockPkgs.addAll(dock)
         drawerPkgs.clear(); drawerPkgs.addAll(drawer)
         if (!same) { rebuildGrid(movingPkg); return }
         val byPkg = apps.associateBy { it.pkg }
-        dockTiles.forEachIndexed { i, t -> val a = byPkg[dockPkgs[i]]; if (t.app !== a) t.app = a }
+        // [refresh]: the entries were reloaded, so the same app may come with new art or a new label.
+        dockTiles.forEachIndexed { i, t -> val a = byPkg[dockPkgs[i]]; if (t.app !== a || refresh) t.app = a }
         var k = 0
-        for (r in 1 until rows.size) for (t in rows[r]) { val a = byPkg[drawerPkgs[k++]]; if (t.app !== a) t.app = a }
+        for (r in 1 until rows.size) for (t in rows[r]) { val a = byPkg[drawerPkgs[k++]]; if (t.app !== a || refresh) t.app = a }
     }
 
     /**
@@ -1163,6 +1194,7 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
     /** Root view: sends keys to the home screen first, and Back to [onBack]. */
     private inner class KeyRoot(c: Context) : FrameLayout(c) {
         override fun dispatchKeyEvent(e: KeyEvent): Boolean {
+            lastKeyAt = SystemClock.uptimeMillis()
             if (onKey(e)) return true
             if (e.keyCode == KeyEvent.KEYCODE_BACK && ctx !is Activity) {
                 if (e.action == KeyEvent.ACTION_UP && !e.isCanceled) onBack()
@@ -1174,5 +1206,7 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
 
     companion object {
         const val COLS = 6
+        /** A focus change this soon after a key (a press, or a panel closing after Back) counts as caused by it. */
+        private const val KEY_FOCUS_MS = 1000L
     }
 }

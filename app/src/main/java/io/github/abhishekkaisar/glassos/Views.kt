@@ -40,6 +40,10 @@ class FocusAnim(private val v: View, private val scale: Float, private val onUpd
         val target = if (focused) 1f else 0f
         val s = if (focused) scale else 1f
         if (instant) {
+            // A scale still animating from an earlier focus change would overwrite a plain assignment on its next
+            // frame and leave the view enlarged while unfocused. Queuing the scale again replaces only that part of
+            // the running animation (rotation and translation keep going); a zero duration ends it at once.
+            v.animate().scaleX(s).scaleY(s).setDuration(0).setUpdateListener(null).start()
             amount = target; v.scaleX = s; v.scaleY = s; onUpdate(amount); return
         }
         v.animate().scaleX(s).scaleY(s)
@@ -181,6 +185,16 @@ class TileView(ctx: Context, val cardW: Int, val cardH: Int, private val labelH:
             addUpdateListener { glare = it.animatedValue as Float; invalidate() }
             start()
         }
+    }
+
+    /** Jumps to the end state of the current focus, with no spring, tilt or glare sweep. */
+    fun settleFocus() {
+        if (picked) return
+        focus.set(isFocused, instant = true)
+        glareAnim?.cancel()
+        animate().rotationX(0f).rotationY(0f).setDuration(0).start()
+        rotationX = 0f; rotationY = 0f; glare = 0.3f
+        invalidate()
     }
 
     /** A small bump when D-pad is pressed against an edge with nowhere to go. */
