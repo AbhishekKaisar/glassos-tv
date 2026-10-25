@@ -146,6 +146,8 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
     }
 
     private fun ui(r: () -> Unit) { main.post { if (!released) r() } }
+    /** True when a key reached this home in the last [KEY_FOCUS_MS], so a focus change now counts as the user's. */
+    private fun byKey() = SystemClock.uptimeMillis() - lastKeyAt < KEY_FOCUS_MS
     private fun focused(): View? = root.findFocus()
 
     // ---------- UI ----------
@@ -275,10 +277,9 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
 
         root.viewTreeObserver.addOnGlobalFocusChangeListener { old, new ->
             // Only a key moves focus audibly. A change no key caused (the app list reloaded, a window came back)
-            // is silent and lands without the spring, so a tile never seems to be focused again on its own.
-            val byKey = SystemClock.uptimeMillis() - lastKeyAt < KEY_FOCUS_MS
-            if (old != null && new != null && old !== new && byKey && prefs.sound && !FocusAnim.forceInstant) sound?.tick()
-            if (!byKey) { (old as? TileView)?.settleFocus(); (new as? TileView)?.settleFocus() }
+            // is silent, and tiles land without the spring (TileView.quietFocus), so a tile never seems to be
+            // focused again on its own.
+            if (old != null && new != null && old !== new && byKey() && prefs.sound && !FocusAnim.forceInstant) sound?.tick()
             if (new === hero || old === hero) updateHeroRunning()
             if (::chevron.isInitialized) chevron.animate().alpha(if (new is TileView && (new.tag as? Int) == 0) 1f else 0f).setDuration(200).start()
             if (new is TileView) {
@@ -570,6 +571,13 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
             setLists(dock, drawer, refresh = true)
             return
         }
+        // While an app is being moved the lists on screen differ from the saved ones; with the same apps installed
+        // and shown, the move carries on where it is.
+        if (movingPkg != null && dockPkgs.size + drawerPkgs.size == shown.size && shown.containsAll(dockPkgs) &&
+            shown.containsAll(drawerPkgs)) {
+            setLists(ArrayList(dockPkgs), ArrayList(drawerPkgs), refresh = true)
+            return
+        }
         // The app list changed under a move (an install or uninstall): the move ends unsaved.
         if (movingPkg != null) endMove()
         if (appMenu.isOpen) appMenu.close()
@@ -612,6 +620,7 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
         // Read the tile's app at click time: a move swaps apps between tiles in place.
         t.onClick = { val a = t.app; if (!editMode && a != null) launch(a.pkg, t) }
         t.onLongPress = { if (!editMode) startMove(t) }
+        t.quietFocus = { !byKey() }
         return t
     }
 

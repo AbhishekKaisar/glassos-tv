@@ -4,7 +4,8 @@
 
 - Fire TV: after Home, the focus sound and a tile's focus animation no longer repeat on their own every few seconds,
   and the first top row app no longer stays enlarged for a moment. Package broadcasts that change nothing shown now
-  refresh the tiles in place instead of rebuilding them, and only a key press plays the focus sound (#16).
+  refresh the tiles in place instead of rebuilding them (and no longer cancel an app being moved), and only a key
+  press plays the focus sound (#16).
 
 ## 1.0.2-beta (2026-10-23)
 
