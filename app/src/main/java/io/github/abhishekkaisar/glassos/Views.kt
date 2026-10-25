@@ -40,6 +40,10 @@ class FocusAnim(private val v: View, private val scale: Float, private val onUpd
         val target = if (focused) 1f else 0f
         val s = if (focused) scale else 1f
         if (instant) {
+            // A scale still animating from an earlier focus change would overwrite a plain assignment on its next
+            // frame and leave the view enlarged while unfocused. Queuing the scale again replaces only that part of
+            // the running animation (rotation and translation keep going) and ends it at once.
+            v.animateNow { scaleX(s).scaleY(s) }
             amount = target; v.scaleX = s; v.scaleY = s; onUpdate(amount); return
         }
         v.animate().scaleX(s).scaleY(s)
@@ -53,6 +57,19 @@ class FocusAnim(private val v: View, private val scale: Float, private val onUpd
             start()
         }
     }
+}
+
+/**
+ * Runs [props] on the view's animator at once, replacing those properties in any running animation. The animator
+ * keeps a duration once set for every later call that sets none (a tile's tilt and nudge), so it gets its old one
+ * back afterwards.
+ */
+internal inline fun View.animateNow(props: android.view.ViewPropertyAnimator.() -> Unit) {
+    val a = animate()
+    val d = a.duration
+    a.props()
+    a.setDuration(0).start()
+    a.setDuration(d)
 }
 
 /** A FrameLayout drawn as a glass slab with a soft shadow. */
@@ -94,6 +111,8 @@ class TileView(ctx: Context, val cardW: Int, val cardH: Int, private val labelH:
         set(v) { field = v; applyPicked(); invalidate() }
     var onClick: (() -> Unit)? = null
     var onLongPress: (() -> Unit)? = null
+    /** Asked on each focus change: true lands it at once, with no spring, tilt or glare sweep. */
+    var quietFocus: (() -> Boolean)? = null
 
     private val radius = ctx.dp(12.5f)
     private val focus = FocusAnim(this, 1.2f) { invalidate() }
@@ -154,8 +173,16 @@ class TileView(ctx: Context, val cardW: Int, val cardH: Int, private val labelH:
     override fun onFocusChanged(gained: Boolean, direction: Int, previous: Rect?) {
         super.onFocusChanged(gained, direction, previous)
         translationZ = if (gained) 2f else 0f
-        if (!picked) focus.set(gained)
-        if (gained) {
+        // Decided here rather than in a global focus listener: that one runs before the gaining view's
+        // onFocusChanged, which would then start the spring and tilt again.
+        val instant = FocusAnim.forceInstant || quietFocus?.invoke() == true
+        if (!picked) focus.set(gained, instant)
+        if (instant) {
+            glareAnim?.cancel()
+            animateNow { rotationX(0f).rotationY(0f) }
+            rotationX = 0f; rotationY = 0f; glare = 0.3f
+            invalidate()
+        } else if (gained) {
             when (direction) {
                 View.FOCUS_RIGHT -> tilt(0f, -5f, -0.35f)
                 View.FOCUS_LEFT -> tilt(0f, 5f, 0.95f)
