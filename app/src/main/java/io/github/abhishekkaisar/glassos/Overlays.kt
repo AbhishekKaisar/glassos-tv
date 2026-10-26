@@ -49,6 +49,7 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
     private val fireHomeRow = RowView(context, "${Platform.name(context)} home")
     /** Android TV and Google TV: make GlassOS the default home app. */
     private val homeAppRow = RowView(context, "Home screen")
+    private val glassTvRow = RowView(context, "Glass TV")
     private val scroll = ScrollView(context).apply {
         isVerticalScrollBarEnabled = false
         overScrollMode = View.OVER_SCROLL_NEVER
@@ -119,6 +120,7 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
         list.addView(replaceRow, rowLp())
         list.addView(permsRow, rowLp())
         if (!Platform.isFireTv(context)) list.addView(homeAppRow, rowLp())
+        list.addView(glassTvRow, rowLp())
         list.addView(fireSettingsRow, rowLp())
         if (Platform.stockHome(context) != null) list.addView(fireHomeRow, rowLp())
         list.addView(setupRow, rowLp())
@@ -134,6 +136,28 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
         hiddenRow.onClick = { step(hiddenRow, SetupView.Step.HIDDEN) }
         permsRow.onClick = { step(permsRow, SetupView.Step.PERMISSIONS) }
         homeAppRow.onClick = { step(homeAppRow, SetupView.Step.HOME) }
+        glassTvRow.onClick = {
+            val pm = context.packageManager
+            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                addCategory(android.content.Intent.CATEGORY_LEANBACK_LAUNCHER)
+                setPackage("com.gathin.tvhome")
+            }
+            val launch = pm.resolveActivity(intent, 0)?.let {
+                android.content.Intent(intent).setClassName(
+                    "com.gathin.tvhome",
+                    it.activityInfo.name
+                )
+            }
+            if (launch != null) {
+                close { context.startActivity(launch) }
+            } else {
+                android.widget.Toast.makeText(
+                    context,
+                    "Aktivitas Glass TV tidak ditemukan",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        }
         setupRow.onClick = { resumeRow = setupRow; act.openSetup() }
         aboutRow.onClick = { step(aboutRow, SetupView.Step.ABOUT) }
         // Device admin blocks uninstalling; an app may always remove its own admin.
