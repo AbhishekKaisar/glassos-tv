@@ -54,6 +54,8 @@
 - Top Shelf: a TV whose language has a region number instead of a country (Spanish for Latin America, es-419) no
   longer sends that number to TMDB, which lost the titles on your services; it uses US until a country is chosen in
   Settings, which shows it.
+- Custom icons: the check for changes in Pictures/Glass/icons runs in the background, no longer on the main thread
+  at every Home press while GlassOS takes over from the overlay.
 
 ## 1.0.2-beta (2026-10-23)
 

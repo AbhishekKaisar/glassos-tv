@@ -582,6 +582,14 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
         }
     }
 
+    /**
+     * Reloads the app list when the custom icons folder changed since it was loaded. The folder is listed on the
+     * worker: this runs as Glass comes to the front, while it takes over from the overlay.
+     */
+    fun reloadAppsIfArtChanged(then: (() -> Unit)? = null) {
+        if (!worker.isShutdown) worker.execute { if (AppRepo.customArtChanged(ctx)) ui { loadApps(then) } }
+    }
+
     /** Runs [then] once the app list is loaded: at once when it is, else after the load in flight (starting one if none is). */
     fun whenAppsLoaded(then: () -> Unit) {
         if (HomeShare.apps != null) { then(); return }
