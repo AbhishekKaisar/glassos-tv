@@ -571,15 +571,18 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
             setLists(dock, drawer, refresh = true)
             return
         }
-        // While an app is being moved the lists on screen differ from the saved ones; with the same apps installed
-        // and shown, the move carries on where it is.
-        if (movingPkg != null && dockPkgs.size + drawerPkgs.size == shown.size && shown.containsAll(dockPkgs) &&
+        // While an app is being moved (held OK, or picked up in Edit top row) the lists on screen differ from the
+        // saved ones; with the same apps installed and shown, the move carries on where it is.
+        val moving = movingPkg != null || pickedIndex >= 0
+        if (moving && dockPkgs.size + drawerPkgs.size == shown.size && shown.containsAll(dockPkgs) &&
             shown.containsAll(drawerPkgs)) {
             setLists(ArrayList(dockPkgs), ArrayList(drawerPkgs), refresh = true)
             return
         }
         // The app list changed under a move (an install or uninstall): the move ends unsaved.
         if (movingPkg != null) endMove()
+        // The rebuilt shelf has no picked tile; left set, the index would move whichever app is at it now.
+        pickedIndex = -1
         if (appMenu.isOpen) appMenu.close()
         dockPkgs.clear()
         dockPkgs.addAll(dock)

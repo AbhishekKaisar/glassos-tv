@@ -6,6 +6,8 @@
   and the first top row app no longer stays enlarged for a moment. Package broadcasts that change nothing shown now
   refresh the tiles in place instead of rebuilding them (and no longer cancel an app being moved), and only a key
   press plays the focus sound (#16).
+- Edit top row: an app being moved no longer snaps back when Fire OS sends a package broadcast that changes nothing
+  shown; the move carries on where it is (#23).
 
 ## 1.0.2-beta (2026-10-23)
 
