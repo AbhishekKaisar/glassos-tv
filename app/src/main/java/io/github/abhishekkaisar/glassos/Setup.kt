@@ -210,7 +210,8 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
     private fun welcome() {
         title.text = "Welcome to GlassOS"
         subtitle.text = "A calm, glassy home screen for your TV, inspired by tvOS.\nA few quick steps and you are ready."
-        val logo = ImageView(context).apply { setImageResource(R.mipmap.ic_launcher); scaleType = ImageView.ScaleType.FIT_CENTER }
+        // The launcher icon drawn large (docs/logo.svg): the 96 px icon itself is soft at this size.
+        val logo = ImageView(context).apply { setImageResource(R.drawable.logo); scaleType = ImageView.ScaleType.FIT_CENTER }
         body.addView(logo, LayoutParams(dpi(120f), dpi(120f), Gravity.CENTER))
         navButton("Get Started", primary = true) { next() }.requestFocus()
     }

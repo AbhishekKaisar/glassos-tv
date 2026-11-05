@@ -16,6 +16,8 @@
   until Fire OS is updated (#20).
 - Android TV: when GlassOS is the default home app, Settings shows "Replace Android TV home" dimmed as "Not needed"
   and focus passes over it, instead of reading On for a watcher that does not run (#2).
+- Setup: the welcome logo is sharp. It was the 96 px launcher icon stretched to 240 px; it now comes from a vector
+  source of the same design (docs/logo.svg), rendered at 480 px. The launcher icon itself is unchanged (#1).
 
 ## 1.0.2-beta (2026-10-23)
 
