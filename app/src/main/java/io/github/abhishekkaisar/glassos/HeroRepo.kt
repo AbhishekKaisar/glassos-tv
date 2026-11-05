@@ -42,9 +42,10 @@ class Loaded(val slide: Slide, val sharp: Bitmap, val blurred: Bitmap, val logo:
 }
 
 /**
- * Sources for the rotating Top Shelf: trending titles from TMDB (default), the Apple TV app's featured titles
- * (unofficial, off by default) or the built-in scenes. Titles are cached on disk and refreshed at most every
- * 6 hours. The user's own photos (copied to private storage) are one of the fallback choices.
+ * Sources for the rotating Top Shelf: trending titles from TMDB with the installed services' titles first (default),
+ * TMDB's trending list of the day or the week alone, the Apple TV app's featured titles (unofficial, off by default)
+ * or the built-in scenes. Titles are cached on disk and refreshed at most every 6 hours. The user's own photos
+ * (copied to private storage) are one of the fallback choices.
  */
 object HeroRepo {
     /** Fallback choice: the user's own photos in Pictures/Glass. */
@@ -52,10 +53,17 @@ object HeroRepo {
     val APPLE_TV_PKGS = listOf("com.apple.atve.amazon.appletv", "com.apple.atve.androidtv.appletv")
 
     const val SRC_TMDB = "tmdb"
+    /** TMDB's trending list of the day or the week alone, without the installed services' titles first. */
+    const val SRC_TMDB_DAY = "tmdb_day"
+    const val SRC_TMDB_WEEK = "tmdb_week"
     const val SRC_APPLE = "apple"
     const val SRC_SCENES = "scenes"
-    val SOURCES = listOf(SRC_TMDB to "TMDB", SRC_APPLE to "Apple TV (unofficial)", SRC_SCENES to "Built-in scenes")
+    val SOURCES = listOf(SRC_TMDB to "TMDB", SRC_TMDB_DAY to "TMDB trending today", SRC_TMDB_WEEK to "TMDB trending this week",
+        SRC_APPLE to "Apple TV (unofficial)", SRC_SCENES to "Built-in scenes")
     fun sourceLabel(id: String) = SOURCES.firstOrNull { it.first == id }?.second ?: id
+
+    /** The Top Shelf starts in a new order each time GlassOS starts, and keeps it while it runs (both homes agree). */
+    private val runSeed = java.util.Random().nextLong()
 
     private const val REFRESH_MS = 6 * 3600_000L
     private const val RETRY_MS = 30 * 60_000L
@@ -114,7 +122,7 @@ object HeroRepo {
                     logo = o.optString("logo").ifEmpty { null }?.let { File(it) }?.takeIf { it.exists() },
                     pkg = o.optString("pkg").ifEmpty { null }
                 )
-            }
+            }.shuffled(java.util.Random(runSeed))
         } catch (e: Throwable) { emptyList() }
     }
 
@@ -140,7 +148,12 @@ object HeroRepo {
         if (src == SRC_SCENES) return false
         val d = dir(ctx, src)
         try { File(d, "attempt").writeText(System.currentTimeMillis().toString()) } catch (e: Throwable) { }
-        val items = if (src == SRC_TMDB) Tmdb.fetch(ctx) else appleItems(d) ?: return false
+        val items = when (src) {
+            SRC_TMDB -> Tmdb.fetch(ctx)
+            SRC_TMDB_DAY -> Tmdb.fetch(ctx, trending = "day")
+            SRC_TMDB_WEEK -> Tmdb.fetch(ctx, trending = "week")
+            else -> appleItems(d) ?: return false
+        }
         return store(d, items, if (src == SRC_APPLE) "us" else Prefs(ctx).effectiveCountry)
     }
 

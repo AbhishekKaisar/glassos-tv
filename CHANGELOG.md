@@ -29,6 +29,9 @@
   home app: that prepared home was never shown, and it held a full home's views in memory while other apps ran.
 - A small shield shows before the time in the profile pill while a VPN is connected, so you can see it without
   opening Control Center (#26).
+- Top Shelf: two more sources in Settings > Top Shelf, TMDB trending today and TMDB trending this week, which show
+  TMDB's trending titles whatever service they are on. Every title source now starts in a new order each time
+  GlassOS starts (#29).
 
 ## 1.0.2-beta (2026-10-23)
 

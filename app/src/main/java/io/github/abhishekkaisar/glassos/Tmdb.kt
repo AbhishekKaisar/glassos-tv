@@ -45,8 +45,12 @@ object Tmdb {
 
     private class Ref(val type: String, val id: Long, val title: String, val backdrop: String, val providerPkg: String?)
 
-    /** Fetches the current titles. Empty without a key or a network. Call off the UI thread. */
-    fun fetch(ctx: Context): List<HeroRepo.Item> {
+    /**
+     * Fetches the current titles. Empty without a key or a network. Call off the UI thread. [trending] ("day" or
+     * "week") takes TMDB's trending list of that window alone; without it the installed services' titles come first.
+     * Either way OK opens a title in an installed service that streams it here.
+     */
+    fun fetch(ctx: Context, trending: String? = null): List<HeroRepo.Item> {
         val prefs = Prefs(ctx)
         val key = prefs.effectiveTmdbKey
         if (key.isEmpty()) return emptyList()
@@ -57,13 +61,13 @@ object Tmdb {
 
         // Lists: titles on the installed services (series and films), then trending, mixed in turn.
         val lists = ArrayList<List<Ref>>()
-        if (services.isNotEmpty()) {
+        if (trending == null && services.isNotEmpty()) {
             val ids = services.flatMap { it.first.ids }.joinToString("|")
             for (type in listOf("tv", "movie")) {
                 lists.add(refs(get(key, "/discover/$type?watch_region=$region&with_watch_providers=${enc(ids)}&with_watch_monetization_types=flatrate&sort_by=popularity.desc&include_adult=false"), type))
             }
         }
-        lists.add(refs(get(key, "/trending/all/week"), null))
+        lists.add(refs(get(key, "/trending/all/${trending ?: "week"}"), null))
         val picked = ArrayList<Ref>()
         val seen = HashSet<String>()
         var i = 0

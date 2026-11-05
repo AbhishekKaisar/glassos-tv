@@ -17,7 +17,7 @@ class Prefs(ctx: Context) {
         get() = sp.getString("fallback", DEFAULT_SCENE) ?: DEFAULT_SCENE
         set(v) { sp.edit().putString("fallback", v).apply() }
 
-    /** Top Shelf source: [HeroRepo.SRC_TMDB] (default), [HeroRepo.SRC_APPLE] or [HeroRepo.SRC_SCENES]. */
+    /** Top Shelf source: one of [HeroRepo.SOURCES], [HeroRepo.SRC_TMDB] by default. */
     var topShelf: String
         get() = sp.getString("topShelf", HeroRepo.SRC_TMDB) ?: HeroRepo.SRC_TMDB
         set(v) { sp.edit().putString("topShelf", v).apply() }

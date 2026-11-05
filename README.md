@@ -180,12 +180,14 @@ Choose in Settings > Top Shelf:
 
 - **TMDB** (default): trending titles from [TMDB](https://www.themoviedb.org/), preferring those on your installed
   streaming services in your country. Refreshed at most every 6 hours and cached for offline use.
+- **TMDB trending today** and **TMDB trending this week**: TMDB's trending films and series of the day or the week,
+  whatever service they are on. OK still opens a title's app when you have one that streams it.
 - **Apple TV (unofficial)**: the featured titles of the Apple TV app's web catalogue. Unofficial and off by default;
   it may stop working at any time.
 - **Built-in scenes**: no network at all.
 
-When a source has no art (no network, no key), the background chosen under "When Top Shelf art is unavailable" is
-shown.
+The titles come in a new order each time GlassOS starts. When a source has no art (no network, no key), the
+background chosen under "When Top Shelf art is unavailable" is shown.
 
 <img src="app/src/main/res/drawable-nodpi/tmdb_logo.png" alt="TMDB" width="160">
 
