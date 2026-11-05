@@ -36,6 +36,9 @@ on the Android TV emulator.
   and a small shield while a VPN is connected.
 - **Reduce transparency** (Settings), like the tvOS accessibility option: solid panels instead of glass, for anyone who
   finds text over blurred art hard to read.
+- **Your own app icons**: put an image named after an app (`Netflix.png`, or its package name) in the TV's
+  `Pictures/Glass/icons` folder. A wide image fills the tile like a TV banner; a square one sits centred on its own
+  colour. It shows when you come back to Home (needs the Storage permission).
 - **Control Center** (Menu, or OK on the pill): Sleep, Wi-Fi, Do Not Disturb, Audio, Inputs (on TVs with HDMI inputs,
   such as Fire TV Edition TVs and the Fire TV Cube), a sleep timer, Controllers, Accessibility, Parental Controls
   (Fire TV), Now Playing (while something plays) and VPN (while a VPN is on). On Android TV the buttons open the
