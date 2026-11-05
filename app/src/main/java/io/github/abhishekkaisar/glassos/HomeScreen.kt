@@ -559,14 +559,33 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
 
     // ---------- Apps and grid ----------
 
-    /** Reads the installed apps again; [then] runs on the main thread once this home shows them. */
+    /** Callbacks for the load in flight: a newer load replaces its result, so they run when the newest is shown. */
+    private val afterLoad = ArrayList<() -> Unit>()
+    private var loadingApps = false
+
+    /** Reads the installed apps again; [then] runs on the main thread once this home shows them. Main thread only. */
     fun loadApps(then: (() -> Unit)? = null) {
+        then?.let { afterLoad.add(it) }
+        loadingApps = true
         val token = ++appsToken
         worker.execute {
             val list = try { AppRepo.load(ctx) } catch (e: Exception) { emptyList() }
             HomeShare.apps = list
-            ui { if (token == appsToken) { applyApps(list); then?.invoke() } }
+            ui {
+                if (token != appsToken) return@ui
+                loadingApps = false
+                applyApps(list)
+                val run = afterLoad.toList()
+                afterLoad.clear()
+                run.forEach { it() }
+            }
         }
+    }
+
+    /** Runs [then] once the app list is loaded: at once when it is, else after the load in flight (starting one if none is). */
+    fun whenAppsLoaded(then: () -> Unit) {
+        if (HomeShare.apps != null) { then(); return }
+        if (loadingApps) afterLoad.add(then) else loadApps(then)
     }
 
     /** Shows the app list another home loaded ([HomeShare.apps]), in place when the same apps are shown. */
