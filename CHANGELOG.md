@@ -41,6 +41,8 @@
 - Control Center: an Inputs button on TVs with HDMI or other inputs (Fire TV Edition TVs, the Fire TV Cube, Android
   TVs). It lists the inputs by the names given on the TV and opens one in the TV's own player; with a single input it
   opens that one at once (#11).
+- Settings > Reduce transparency, like the tvOS accessibility option: every panel, the shelf and the profile pill draw
+  a solid base instead of the blurred art, and the drawer a solid ground. Off by default (#10).
 
 ## 1.0.2-beta (2026-10-23)
 

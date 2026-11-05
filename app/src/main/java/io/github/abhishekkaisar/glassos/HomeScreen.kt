@@ -123,6 +123,7 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
     }
 
     init {
+        GlassPainter.solid = prefs.reduceTransparency
         Backdrop.addListener(backdropListener)
         Backdrop.addFrameListener(frameListener)
         buildUi()
@@ -415,6 +416,14 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
     private fun ownTask() = ctx !is Activity || !Platform.isFireTv(ctx)
 
     fun openAmazonHome() = HomeWatcher.openAmazonHome(ctx)
+
+    /** Settings > Reduce transparency: every glass surface turns solid, or back to glass, at once. */
+    fun setReduceTransparency(on: Boolean) {
+        prefs.reduceTransparency = on
+        GlassPainter.solid = on
+        // Every home screen (this one and the other window's) redraws its glass.
+        Backdrop.changed()
+    }
 
     fun setReplaceHome(on: Boolean) {
         prefs.replaceHome = on

@@ -34,6 +34,8 @@ on the Android TV emulator.
 - **App drawer**: every installed app, with labels, a scroll below the shelf.
 - **Adaptive profile pill**: the time and your avatar in the top right, with a tint that adapts to the art behind it,
   and a small shield while a VPN is connected.
+- **Reduce transparency** (Settings), like the tvOS accessibility option: solid panels instead of glass, for anyone who
+  finds text over blurred art hard to read.
 - **Control Center** (Menu, or OK on the pill): Sleep, Wi-Fi, Do Not Disturb, Audio, Inputs (on TVs with HDMI inputs,
   such as Fire TV Edition TVs and the Fire TV Cube), a sleep timer, Controllers, Accessibility, Parental Controls
   (Fire TV), Now Playing (while something plays) and VPN (while a VPN is on). On Android TV the buttons open the

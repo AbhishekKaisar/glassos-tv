@@ -9,6 +9,11 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("sound", true)
         set(v) { sp.edit().putBoolean("sound", v).apply() }
 
+    /** Settings > Reduce transparency: solid panels instead of glass ([GlassPainter.solid]). Off by default. */
+    var reduceTransparency: Boolean
+        get() = sp.getBoolean("reduceTransparency", false)
+        set(v) { sp.edit().putBoolean("reduceTransparency", v).apply() }
+
     /**
      * Fallback background, shown when the Top Shelf has no title art: a built-in scene (scene:..., default),
      * the user's own photos in Pictures/Glass (hero:photos) or one image (file:...).

@@ -41,6 +41,7 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
     private val aboutRow = RowView(context, "About")
     private val uninstallRow = RowView(context, "Prepare to uninstall")
     private val soundRow = RowView(context, "Focus sounds")
+    private val transparencyRow = RowView(context, "Reduce transparency")
     private val editRow = RowView(context, "Edit top row")
     private val bgRow = RowView(context, "Background").apply { isFocusable = false; isClickable = false }
     private val allRow = RowView(context, "Show all apps")
@@ -96,6 +97,8 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
         list.addView(countryRow, rowLp())
         list.addView(shelfRow, rowLp())
         list.addView(keyRow, rowLp())
+        // Above Focus sounds, whose Down goes to the chosen background thumbnail.
+        list.addView(transparencyRow, rowLp())
         list.addView(soundRow, rowLp())
         list.addView(bgRow, rowLp())
         val bgLabel = TextView(context).apply {
@@ -156,6 +159,10 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
             act.prefs.sound = !act.prefs.sound
             updateValues()
         }
+        transparencyRow.onClick = {
+            act.setReduceTransparency(!act.prefs.reduceTransparency)
+            updateValues()
+        }
         editRow.onClick = { close { act.enterEdit() } }
         allRow.onClick = { close { act.focusAllApps() } }
         replaceRow.onClick = {
@@ -173,6 +180,7 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
 
     private fun updateValues() {
         soundRow.valueView.text = if (act.prefs.sound) "On" else "Off"
+        transparencyRow.valueView.text = if (act.prefs.reduceTransparency) "On" else "Off"
         val hiddenCount = act.prefs.hidden.count { p -> HomeShare.apps?.any { it.pkg == p } ?: true }
         hiddenRow.valueView.text = if (hiddenCount == 0) "None" else "$hiddenCount"
         nameRow.valueView.text = act.prefs.name.ifEmpty { "Not set" }

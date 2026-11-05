@@ -459,10 +459,16 @@ class BlurScrim(ctx: Context) : View(ctx) {
     private val tint = Paint().apply { color = 0x66000008 }
 
     override fun onDraw(c: Canvas) {
+        // Reduce transparency: a solid dark ground under the drawer instead of the blurred art.
+        if (GlassPainter.solid) { c.drawColor(SOLID); return }
         val a = Backdrop.a
         val b = Backdrop.b
         a.bmp?.let { pa.alpha = 255; c.drawBitmap(it, a.m, pa) }
         b.bmp?.let { if (b.alpha > 0.004f) { pb.alpha = (b.alpha * 255).toInt(); c.drawBitmap(it, b.m, pb) } }
         c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), tint)
+    }
+
+    private companion object {
+        const val SOLID = 0xFF0B0E1A.toInt()
     }
 }
