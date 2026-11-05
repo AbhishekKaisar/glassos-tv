@@ -31,7 +31,8 @@ on the Android TV emulator.
 - **Glass shelf**: up to six favourite apps on a frosted glass shelf, with the first row of the app drawer peeking
   in below it. Long press OK on any app to add it to the top row or remove it; Settings > Edit top row moves them.
 - **App drawer**: every installed app, with labels, a scroll below the shelf.
-- **Adaptive profile pill**: the time and your avatar in the top right, with a tint that adapts to the art behind it.
+- **Adaptive profile pill**: the time and your avatar in the top right, with a tint that adapts to the art behind it,
+  and a small shield while a VPN is connected.
 - **Control Center** (Menu, or OK on the pill): Sleep, Wi-Fi, Do Not Disturb, Audio, a sleep timer, Controllers,
   Accessibility, Parental Controls (Fire TV), Now Playing (while something plays) and VPN (while a VPN is on). On
   Android TV the buttons open the standard Settings pages.

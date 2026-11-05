@@ -27,6 +27,8 @@
   AGENTS.md note that the Shield turns its stock launcher back on at every restart (#31).
 - GlassOS no longer prepares the Home overlay when the home watcher cannot run, for example when it is the default
   home app: that prepared home was never shown, and it held a full home's views in memory while other apps ran.
+- A small shield shows before the time in the profile pill while a VPN is connected, so you can see it without
+  opening Control Center (#26).
 
 ## 1.0.2-beta (2026-10-23)
 

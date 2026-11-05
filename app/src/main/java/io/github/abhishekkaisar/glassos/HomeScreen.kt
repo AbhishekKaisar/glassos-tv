@@ -490,6 +490,8 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
         if (!::gear.isInitialized) return
         val fmt = if (android.text.format.DateFormat.is24HourFormat(ctx)) "H:mm" else "h:mm a"
         gear.time = android.text.format.DateFormat.format(fmt, System.currentTimeMillis()).toString().uppercase()
+        // With the clock: when Glass comes to the front (after the VPN app, say) and every minute.
+        gear.vpn = Net.vpnActive(ctx)
     }
 
     private fun storageGranted() = Build.VERSION.SDK_INT < 23 ||
