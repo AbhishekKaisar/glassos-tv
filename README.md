@@ -134,8 +134,8 @@ If GlassOS says the connection was refused, use the manual grants from a compute
 `adb connect` as the TV's Wireless debugging screen shows), or connect once over USB and run `adb tcpip 5555`.
 
 On Fire TV, Fire OS updates since 2024 (7.6.6.9, 8.1.0.3 and late Fire OS 6) block apps from using the TV's own ADB, so
-setup says the Fire TV closed its ADB to GlassOS. Run these from a computer instead: the [manual grants](#manual-grants)
-after `adb connect <tv-ip>:5555`.
+setup says the Fire TV closed or refused its ADB to GlassOS, and leads with the computer steps the next time. Run these
+from a computer instead: the [manual grants](#manual-grants) after `adb connect <tv-ip>:5555`.
 
 Every feature works without its permission, with less:
 

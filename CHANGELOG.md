@@ -10,6 +10,10 @@
   shown; the move carries on where it is (#23).
 - A package broadcast no longer throws away the home GlassOS prepares for the Home button: it takes the new app list
   and stays ready, so Home covers the stock home as fast after app updates as before them (#24).
+- Fire TV setup: any refusal from the TV's own ADB other than debugging being off now points to the grants from a
+  computer, like a closed connection, instead of "turn debugging off and on" (late Fire OS 6 refuses differently).
+  On Fire OS 5 and 6 it names their notification access command, and the next visit leads with the computer steps
+  until Fire OS is updated (#20).
 
 ## 1.0.2-beta (2026-10-23)
 

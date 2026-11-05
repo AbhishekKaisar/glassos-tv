@@ -64,6 +64,11 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("askedStorage", false)
         set(v) { sp.edit().putBoolean("askedStorage", v).apply() }
 
+    /** Build.FINGERPRINT of a Fire OS build that kept GlassOS out of its own ADB; setup then leads with a computer. */
+    var adbBlockedBuild: String
+        get() = sp.getString("adbBlockedBuild", "") ?: ""
+        set(v) { sp.edit().putString("adbBlockedBuild", v).apply() }
+
     companion object {
         const val DEFAULT_SCENE = "scene:desert"
     }
