@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Control Center looks like tvOS's: the time and date head the panel, with the tabs beside them as round icons
+  (Profile, Controls, and Now Playing and VPN while active) and the shown tab lit. The tab name above the buttons is
+  gone, and nine buttons make a three by three grid instead of two full rows and one button on its own.
+- Control Center pages (Sleep Timer, Inputs, Switch Profile) are lists, as in tvOS: long input names fit, the Turn Off
+  row shows the time left, and a list longer than half the screen scrolls.
+- Control Center's Profile tab has a Name and Photo row that opens GlassOS settings, so it is not empty on TVs
+  without profiles.
+- Now Playing shows the progress with the elapsed and remaining time, and Down from its tab lands on Play/Pause. When
+  the track changes while Control Center is open it shows the new title and art (it kept the old ones), and the
+  buttons control the session shown even if another app took over.
 - Fire TV: after Home, the focus sound and a tile's focus animation no longer repeat on their own every few seconds,
   and the first top row app no longer stays enlarged for a moment. Package broadcasts that change nothing shown now
   refresh the tiles in place instead of rebuilding them (and no longer cancel an app being moved), and only a key
