@@ -138,6 +138,9 @@ ADB:
 2. In GlassOS setup (or Settings > Permissions), choose **Set Up**.
 3. The TV asks "Allow USB debugging?". Tick **Always allow from this computer** and choose **Allow**.
 
+On a rooted TV no debugging is needed: Set Up asks your root manager instead (allow GlassOS when it asks), and uses
+the TV's ADB only if root is refused.
+
 GlassOS connects to `127.0.0.1:5555` with its own key, runs the grant commands on itself and shows a tick next to
 each permission. You can turn debugging off again afterwards.
 

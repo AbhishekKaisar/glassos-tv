@@ -240,7 +240,8 @@ minSdk 22 (Fire OS 5 and 6 must keep working).
   differences belong here or behind `Platform.isFireTv`, not scattered.
 - `MainActivity.kt`, `HomeScreen.kt`, `HeroView.kt`, `HeroRepo.kt`, `Tmdb.kt`: home, Top Shelf and its data.
 - `ControlCenter.kt`, `SysControl.kt`: Control Center and the system actions behind it.
-- `Setup.kt`, `Grants.kt`, `AdbClient.kt`: first-run setup and the self-ADB grants.
+- `Setup.kt`, `Grants.kt`, `AdbClient.kt`, `RootShell.kt`: first-run setup and the grants, over the TV's own ADB
+  or with root on a rooted TV.
 - `HomeWatcher.kt`, `HomeOverlay.kt`, `BootReceiver.kt`: covering the stock home and starting at boot.
 
 ## Test

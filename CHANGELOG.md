@@ -36,6 +36,8 @@
   `releases/latest` link does not work for pre-releases (#21).
 - README: a Companion apps section, starting with TV Button, which brings back recent apps on Google TV once the
   stock launcher is off (#28).
+- One-tap permissions on rooted TVs: Set Up asks the root manager and runs the same grants as root, with no ADB
+  debugging needed, and falls back to the TV's ADB if root is refused (#9).
 
 ## 1.0.2-beta (2026-10-23)
 

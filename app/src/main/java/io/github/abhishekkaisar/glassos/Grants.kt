@@ -59,15 +59,18 @@ object Grants {
     /** Result of one grant run: per grant, whether it now holds, and the output of anything that failed. */
     class Result(val ok: Map<Grant, Boolean>, val log: String)
 
-    /** Runs every missing grant over [adb] and checks each afterwards. Call off the UI thread. */
-    fun run(ctx: Context, adb: AdbClient): Result {
+    /**
+     * Runs every missing grant with [shell] (the TV's own ADB, or root on a rooted TV) and checks each afterwards.
+     * Call off the UI thread.
+     */
+    fun run(ctx: Context, shell: (String) -> String): Result {
         val log = StringBuilder()
         val grants = available(ctx)
         for (g in grants) {
             if (g.isGranted(ctx)) continue
             for (cmd in g.commands(ctx)) {
-                val real = if (cmd == "LISTENERS") listenerCommand(ctx, adb) else cmd
-                val out = try { adb.shell(real) } catch (e: Throwable) { "error: ${e.message}" }
+                val real = if (cmd == "LISTENERS") listenerCommand(ctx, shell) else cmd
+                val out = try { shell(real) } catch (e: Throwable) { "error: ${e.message}" }
                 WLog.i("grant: $real -> ${out.trim().take(200)}")
                 if (out.isNotBlank() && !out.contains("Success", true)) log.append(g.title).append(": ").append(out.trim().take(160)).append('\n')
             }
@@ -79,17 +82,17 @@ object Grants {
     }
 
     /** Makes GlassOS the default home app (Android TV, API 24+). Call off the UI thread. */
-    fun setHome(ctx: Context, adb: AdbClient) {
+    fun setHome(ctx: Context, shell: (String) -> String) {
         val cmd = "cmd package set-home-activity " + Platform.homeComponent(ctx).flattenToShortString()
-        val out = try { adb.shell(cmd) } catch (e: Throwable) { "error: ${e.message}" }
+        val out = try { shell(cmd) } catch (e: Throwable) { "error: ${e.message}" }
         WLog.i("home: $cmd -> ${out.trim().take(200)}")
         Thread.sleep(300)
     }
 
-    private fun listenerCommand(ctx: Context, adb: AdbClient): String {
+    private fun listenerCommand(ctx: Context, shell: (String) -> String): String {
         val comp = MediaListener.component(ctx).flattenToString()
         if (Build.VERSION.SDK_INT >= 26) return "cmd notification allow_listener $comp"
-        val cur = try { adb.shell("settings get secure enabled_notification_listeners").trim() } catch (e: Throwable) { "" }
+        val cur = try { shell("settings get secure enabled_notification_listeners").trim() } catch (e: Throwable) { "" }
         val list = cur.split(':').filter { it.isNotBlank() && it != "null" && it != comp }
         return "settings put secure enabled_notification_listeners " + (list + comp).joinToString(":")
     }
