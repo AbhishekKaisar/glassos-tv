@@ -8,6 +8,8 @@
   press plays the focus sound (#16).
 - Edit top row: an app being moved no longer snaps back when Fire OS sends a package broadcast that changes nothing
   shown; the move carries on where it is (#23).
+- A package broadcast no longer throws away the home GlassOS prepares for the Home button: it takes the new app list
+  and stays ready, so Home covers the stock home as fast after app updates as before them (#24).
 
 ## 1.0.2-beta (2026-10-23)
 

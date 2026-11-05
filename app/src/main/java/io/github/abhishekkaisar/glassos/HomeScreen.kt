@@ -548,14 +548,18 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
 
     // ---------- Apps and grid ----------
 
-    fun loadApps() {
+    /** Reads the installed apps again; [then] runs on the main thread once this home shows them. */
+    fun loadApps(then: (() -> Unit)? = null) {
         val token = ++appsToken
         worker.execute {
             val list = try { AppRepo.load(ctx) } catch (e: Exception) { emptyList() }
             HomeShare.apps = list
-            ui { if (token == appsToken) applyApps(list) }
+            ui { if (token == appsToken) { applyApps(list); then?.invoke() } }
         }
     }
+
+    /** Shows the app list another home loaded ([HomeShare.apps]), in place when the same apps are shown. */
+    fun takeApps() { HomeShare.apps?.let { applyApps(it) } }
 
     private fun applyApps(list: List<AppEntry>) {
         apps = list
