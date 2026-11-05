@@ -120,7 +120,9 @@ object HomeOverlay {
      */
     fun prepare(ctx: Context) {
         if (!allowed(ctx) || screen != null || spare != null || HomeShare.mainResumed || HomeShare.apps == null) return
-        if (!Prefs(ctx).replaceHome) return
+        // Only the watcher shows the overlay. Without it (GlassOS is the default home, no usage access, or Replace
+        // home is off) a prepared home is never used, and it holds a full home's views while every app runs.
+        if (!HomeWatcher.wanted(ctx)) return
         val t0 = SystemClock.uptimeMillis()
         val s = build(ctx)
         layOut(s)

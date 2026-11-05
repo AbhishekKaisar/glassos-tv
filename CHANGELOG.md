@@ -25,6 +25,8 @@
 - TVs with no device admin at all, such as the Nvidia Shield, no longer list Device admin as a permission that cannot
   be granted, and Control Center leaves out Sleep and the sleep timer there instead of failing. The README and
   AGENTS.md note that the Shield turns its stock launcher back on at every restart (#31).
+- GlassOS no longer prepares the Home overlay when the home watcher cannot run, for example when it is the default
+  home app: that prepared home was never shown, and it held a full home's views in memory while other apps ran.
 
 ## 1.0.2-beta (2026-10-23)
 
