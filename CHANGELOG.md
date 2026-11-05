@@ -45,6 +45,8 @@
   a solid base instead of the blurred art, and the drawer a solid ground. Off by default (#10).
 - Custom app icons: an image in Pictures/Glass/icons named after an app (or its package) replaces that app's tile
   art, as a banner when wide or as an icon when square. Changes there show on coming back to Home (#32).
+- Sleep timer: a timer set before the TV restarted no longer keeps counting down in Control Center. The restart had
+  dropped its alarm, so it would never have put the TV to sleep.
 
 ## 1.0.2-beta (2026-10-23)
 
