@@ -176,7 +176,7 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
         val hiddenCount = act.prefs.hidden.count { p -> HomeShare.apps?.any { it.pkg == p } ?: true }
         hiddenRow.valueView.text = if (hiddenCount == 0) "None" else "$hiddenCount"
         nameRow.valueView.text = act.prefs.name.ifEmpty { "Not set" }
-        countryRow.valueView.text = act.prefs.country.ifEmpty { "Not set" }.let { c -> if (c.length == 2) java.util.Locale("", c).displayCountry else c }
+        countryRow.valueView.text = java.util.Locale("", act.prefs.effectiveCountry).displayCountry
         shelfRow.valueView.text = HeroRepo.sourceLabel(act.prefs.topShelf)
         keyRow.valueView.text = when {
             act.prefs.tmdbKey.isNotEmpty() -> "Your key"

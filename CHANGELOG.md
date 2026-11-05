@@ -18,6 +18,10 @@
   and focus passes over it, instead of reading On for a watcher that does not run (#2).
 - Setup: the welcome logo is sharp. It was the 96 px launcher icon stretched to 240 px; it now comes from a vector
   source of the same design (docs/logo.svg), rendered at 480 px. The launcher icon itself is unchanged (#1).
+- Shorter first-run setup, like the Apple TV's: welcome, name, top row, permissions (and the home screen step on
+  Android TV), then done. The country follows the TV's region and the profile photo is optional, so both moved to
+  Settings, which now shows the country in use instead of "Not set". The last step no longer says a long press adds
+  an app to the top row; it says to hold OK to move it.
 
 ## 1.0.2-beta (2026-10-23)
 

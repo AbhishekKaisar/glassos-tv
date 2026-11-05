@@ -30,15 +30,16 @@ private const val REQ_HOME = 8
 
 /**
  * First-run setup in a centred glass panel over the Top Shelf, driven with the D-pad: name (on-screen keyboard),
- * profile photo, country, the apps on the top row, and one-tap permissions over the TV's own ADB. Single steps
- * also open from Settings ([open] with single = true).
+ * the apps on the top row, and one-tap permissions over the TV's own ADB. Kept short, like the Apple TV's: the
+ * country follows the TV's region and the profile photo is optional, so both are single steps opened from Settings
+ * ([open] with single = true), like the other steps there.
  */
 class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
     enum class Step { WELCOME, NAME, PHOTO, COUNTRY, APPS, PERMISSIONS, HOME, DONE, TMDB_KEY, ABOUT, HIDDEN }
 
     /** Fire TV cannot change its home app, so the home step is for Android TV and Google TV only. */
     private val fireTv = Platform.isFireTv(context)
-    private val flow = listOfNotNull(Step.WELCOME, Step.NAME, Step.PHOTO, Step.COUNTRY, Step.APPS, Step.PERMISSIONS,
+    private val flow = listOfNotNull(Step.WELCOME, Step.NAME, Step.APPS, Step.PERMISSIONS,
         if (fireTv) null else Step.HOME, Step.DONE)
     var isOpen = false
         private set
@@ -694,7 +695,7 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
 
     private fun doneStep() {
         title.text = "You are all set"
-        subtitle.text = "Press Menu any time for Control Center. Long press OK on an app to add it to the top row or remove it."
+        subtitle.text = "Press Menu any time for Control Center. Hold OK on an app to move it.\nAdd a profile photo in Control Center > GlassOS."
         val av = AvatarPreview(context, dpi(110f))
         val f = Profile.photoFile(context)
         if (f.exists()) av.bitmap = android.graphics.BitmapFactory.decodeFile(f.path)

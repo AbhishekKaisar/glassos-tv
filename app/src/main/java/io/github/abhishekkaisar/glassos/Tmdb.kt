@@ -6,8 +6,8 @@ import java.net.URLEncoder
 
 /**
  * Top Shelf titles from TMDB: trending films and series, with titles from the streaming services installed on
- * this TV mixed in first (TMDB watch providers for the country chosen in setup). Each title gets a wide,
- * text-free backdrop, its English title logo when TMDB has one, and the installed app OK should open.
+ * this TV mixed in first (TMDB watch providers for the TV's country, or the one chosen in Settings). Each title
+ * gets a wide, text-free backdrop, its English title logo when TMDB has one, and the installed app OK should open.
  *
  * This product uses the TMDB API but is not endorsed or certified by TMDB.
  */
@@ -50,7 +50,7 @@ object Tmdb {
         val prefs = Prefs(ctx)
         val key = prefs.effectiveTmdbKey
         if (key.isEmpty()) return emptyList()
-        val region = prefs.country.ifEmpty { java.util.Locale.getDefault().country }.ifEmpty { "US" }.uppercase()
+        val region = prefs.effectiveCountry
         val services = installed(ctx)
         val byId = HashMap<Int, Pair<Provider, String>>()
         services.forEach { s -> s.first.ids.forEach { byId[it] = s } }

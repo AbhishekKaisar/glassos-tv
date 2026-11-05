@@ -39,8 +39,9 @@ on the Android TV emulator.
   and Android TV or Google TV builds that keep their own home), GlassOS notices the stock home and covers it, so
   the Home button still lands in GlassOS.
 - **Starts at boot**, with the Fire TV boot logo handled correctly.
-- **First-run setup**: your name (on-screen keyboard), an optional profile photo, your country, your top-row apps,
-  one-tap permissions and, on Android TV, a "Make GlassOS your home screen" step.
+- **First-run setup** in a few steps: your name (on-screen keyboard), your top-row apps, one-tap permissions and, on
+  Android TV, a "Make GlassOS your home screen" step. The Top Shelf follows the TV's country; a profile photo and
+  another country are in Settings.
 - Built-in procedural scenes (night desert, dusk ocean, aurora, dark) when there is no network, or your own
   photos from the Pictures/Glass folder.
 

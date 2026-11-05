@@ -176,8 +176,8 @@ Launch it:
 adb shell am start -n io.github.abhishekkaisar.glassos/.MainActivity
 ```
 
-GlassOS's own first-run setup then starts on the TV (name, country, favourite apps). Tell the person to go through it
-with the remote.
+GlassOS's own first-run setup then starts on the TV (name, favourite apps, permissions). Tell the person to go through
+it with the remote.
 
 ## Step 7: Check and report
 
