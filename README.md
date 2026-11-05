@@ -276,6 +276,16 @@ GlassOS changes nothing in the system itself, so removing it brings everything b
   2. Fire TV Settings > Applications > Manage Installed Applications > GlassOS > **Uninstall**, or from a computer:
      `adb uninstall io.github.abhishekkaisar.glassos`.
 
+## Companion apps
+
+Other people's apps that work alongside GlassOS. They are not part of GlassOS and not maintained here: read their own
+README before you install one.
+
+- [TV Button](https://github.com/Ancordss/tv-button) (GPL-3.0): Home twice opens a deck of your recent apps, and the
+  remote's spare button opens an app you choose. It fills the gap on Google TV once the stock launcher is turned off,
+  which takes the recent apps screen with it. It works through an accessibility service, which can see the screen of
+  the app in front.
+
 ## Building
 
 Requirements: JDK 17 and the Android SDK (platform 34, build tools 34.0.0).

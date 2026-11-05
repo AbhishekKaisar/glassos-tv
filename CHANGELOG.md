@@ -34,6 +34,8 @@
   GlassOS starts (#29).
 - README: the install section names the current APK and gives its direct link to type into Downloader; GitHub's
   `releases/latest` link does not work for pre-releases (#21).
+- README: a Companion apps section, starting with TV Button, which brings back recent apps on Google TV once the
+  stock launcher is off (#28).
 
 ## 1.0.2-beta (2026-10-23)
 
