@@ -56,6 +56,9 @@
   Settings, which shows it.
 - Custom icons: the check for changes in Pictures/Glass/icons runs in the background, no longer on the main thread
   at every Home press while GlassOS takes over from the overlay.
+- Custom icons: an image named after a package now always beats one named after a label; a label shared by two apps
+  matches neither, so they no longer get the same icon; and of two files whose names match the same, the first by
+  name is used every time.
 
 ## 1.0.2-beta (2026-10-23)
 

@@ -66,10 +66,16 @@ object AppRepo {
     /** Letters and digits in lower case, so "Prime Video.png" and "primevideo.png" both match Prime Video. */
     private fun norm(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 
-    /** Images in [iconsDir] by normalised name. Empty without storage access. */
+    /**
+     * Images in [iconsDir] by normalised name. Of two files whose names match the same ("Netflix.png", "netflix.jpg"),
+     * the first by file name wins, whatever order the folder lists them in. Empty without storage access.
+     */
     private fun customArt(ctx: Context): Map<String, File> = if (!Grants.storage(ctx)) emptyMap() else try {
+        val out = HashMap<String, File>()
         iconsDir().listFiles()?.filter { it.isFile && it.extension.lowercase() in EXTS && norm(it.nameWithoutExtension).isNotEmpty() }
-            ?.associateBy { norm(it.nameWithoutExtension) } ?: emptyMap()
+            ?.sortedBy { it.name.lowercase() }
+            ?.forEach { f -> val k = norm(f.nameWithoutExtension); if (k !in out) out[k] = f }
+        out
     } catch (e: Throwable) { emptyMap() }
 
     private fun customStamp(ctx: Context): String = if (!Grants.storage(ctx)) "" else try {
@@ -94,15 +100,21 @@ object AppRepo {
                 map[pkg] = ri
             }
         }
-        return map.values.map { entry(ctx, it, custom) }.sortedBy { it.label.lowercase() }
+        val labelled = map.values.map { it to (it.loadLabel(pm)?.toString() ?: it.activityInfo.packageName).trim() }
+        // An image named after the package is that app's alone. One named after a label only counts when no other
+        // app has the same name: two apps called YouTube each need their package name.
+        val shared = labelled.groupingBy { norm(it.second) }.eachCount().filterValues { it > 1 }.keys
+        return labelled.map { (ri, label) ->
+            val art = custom[norm(ri.activityInfo.packageName)] ?: custom[norm(label)]?.takeIf { norm(label) !in shared }
+            entry(ctx, ri, label, art)
+        }.sortedBy { it.label.lowercase() }
     }
 
-    private fun entry(ctx: Context, ri: ResolveInfo, custom: Map<String, File>): AppEntry {
+    private fun entry(ctx: Context, ri: ResolveInfo, label: String, custom: File?): AppEntry {
         val pm = ctx.packageManager
         val ai = ri.activityInfo
-        val label = (ri.loadLabel(pm)?.toString() ?: ai.packageName).trim()
         // The user's own art for this app comes first.
-        (custom[norm(label)] ?: custom[norm(ai.packageName)])?.let { f ->
+        custom?.let { f ->
             customTile(ctx, f)?.let { (art, banner) ->
                 return AppEntry(ai.packageName, label, art, banner, if (banner) 0xFF2A3350.toInt() else dominant(art))
             }
