@@ -375,7 +375,7 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
         target?.requestFocus()
     }
 
-    private fun suggestedCountry(): String = Locale.getDefault().country.ifEmpty { "US" }
+    private fun suggestedCountry(): String = Prefs.tvCountry()
 
     private fun appsStep() {
         title.text = "Your top row"

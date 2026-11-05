@@ -51,6 +51,9 @@
   TV's prompt"; it treats it as the TV closing its ADB (on Fire TV, the computer steps) and does not wait twice.
 - Setup: reaching the top row step before the app list has loaded no longer freezes the panel while every app's art
   is rendered; the step says it is loading and fills in when the list is ready.
+- Top Shelf: a TV whose language has a region number instead of a country (Spanish for Latin America, es-419) no
+  longer sends that number to TMDB, which lost the titles on your services; it uses US until a country is chosen in
+  Settings, which shows it.
 
 ## 1.0.2-beta (2026-10-23)
 
