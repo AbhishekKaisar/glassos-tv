@@ -59,6 +59,8 @@
 - Custom icons: an image named after a package now always beats one named after a label; a label shared by two apps
   matches neither, so they no longer get the same icon; and of two files whose names match the same, the first by
   name is used every time.
+- Control Center: Do Not Disturb without notification access now says where to grant it, instead of "(see handoff)",
+  a note left over from development.
 
 ## 1.0.2-beta (2026-10-23)
 

@@ -645,7 +645,7 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         val b = dndButton ?: return
         val want = !Dnd.isOn(context)
         if (!Dnd.set(context, want)) {
-            Toast.makeText(context, "Needs notification access (see handoff)", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Do Not Disturb needs notification access (GlassOS Settings > Permissions)", Toast.LENGTH_LONG).show()
             return
         }
         b.on = want
