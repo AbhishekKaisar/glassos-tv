@@ -519,6 +519,15 @@ class RowView(ctx: Context, title: String) : LinearLayout(ctx) {
     val titleView = TextView(ctx)
     val valueView = TextView(ctx)
     var onClick: (() -> Unit)? = null
+    /** False dims the row and lets focus pass over it: a setting that does not apply right now. */
+    var available = true
+        set(v) {
+            if (field == v) return
+            field = v
+            isFocusable = v
+            isClickable = v
+            applyColours(focus.amount)
+        }
     private val focus = FocusAnim(this, 1.03f) { f -> applyColours(f); invalidate() }
     private val rect = RectF()
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -544,6 +553,11 @@ class RowView(ctx: Context, title: String) : LinearLayout(ctx) {
     }
 
     private fun applyColours(f: Float) {
+        if (!available) {
+            titleView.setTextColor(0x66FFFFFF)
+            valueView.setTextColor(0x4DFFFFFF)
+            return
+        }
         titleView.setTextColor(lerpColor(0xF2FFFFFF.toInt(), 0xFF101218.toInt(), f))
         valueView.setTextColor(lerpColor(0x99FFFFFF.toInt(), 0xFF50545E.toInt(), f))
     }

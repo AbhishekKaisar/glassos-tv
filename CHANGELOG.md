@@ -14,6 +14,8 @@
   computer, like a closed connection, instead of "turn debugging off and on" (late Fire OS 6 refuses differently).
   On Fire OS 5 and 6 it names their notification access command, and the next visit leads with the computer steps
   until Fire OS is updated (#20).
+- Android TV: when GlassOS is the default home app, Settings shows "Replace Android TV home" dimmed as "Not needed"
+  and focus passes over it, instead of reading On for a watcher that does not run (#2).
 
 ## 1.0.2-beta (2026-10-23)
 
