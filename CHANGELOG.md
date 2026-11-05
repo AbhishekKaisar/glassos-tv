@@ -64,6 +64,8 @@
 - Now Playing shows the app that is playing when another app has a paused session listed before it.
 - After Home with Control Center open in the overlay, the overlay's Control Center no longer keeps a once-a-second
   timer and a media callback running for good, which kept the whole removed overlay in memory.
+- Without a profile photo, the profile pill draws its glass avatar from a bitmap made once, instead of building two
+  gradients on every frame of the Top Shelf.
 
 ## 1.0.2-beta (2026-10-23)
 
