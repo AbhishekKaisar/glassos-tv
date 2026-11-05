@@ -212,20 +212,24 @@ class NowPlaying(val controller: MediaController, val title: String, val subtitl
             (ctx.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager).getActiveSessions(MediaListener.component(ctx))
         } catch (e: Throwable) { emptyList() }
 
+        /** The session that is playing, else the first paused one: a paused app listed first must not hide one playing. */
         fun current(ctx: Context): NowPlaying? {
-            for (c in sessions(ctx)) {
-                val st = c.playbackState?.state ?: continue
-                val md = c.metadata ?: continue
-                val title = md.getString(MediaMetadata.METADATA_KEY_TITLE) ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE) ?: continue
-                val playing = st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING
-                if (!playing && st != PlaybackState.STATE_PAUSED) continue
-                val sub = md.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
-                    ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
-                val art = md.getBitmap(MediaMetadata.METADATA_KEY_ART) ?: md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                    ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-                return NowPlaying(c, title, sub, art, playing)
-            }
-            return null
+            val all = sessions(ctx).mapNotNull { of(it) }
+            return all.firstOrNull { it.playing } ?: all.firstOrNull()
+        }
+
+        /** [c] when it is playing, buffering or paused with a title, else null. */
+        private fun of(c: MediaController): NowPlaying? {
+            val st = c.playbackState?.state ?: return null
+            val md = c.metadata ?: return null
+            val title = md.getString(MediaMetadata.METADATA_KEY_TITLE) ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE) ?: return null
+            val playing = st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING
+            if (!playing && st != PlaybackState.STATE_PAUSED) return null
+            val sub = md.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+                ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
+            val art = md.getBitmap(MediaMetadata.METADATA_KEY_ART) ?: md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+            return NowPlaying(c, title, sub, art, playing)
         }
     }
 }
