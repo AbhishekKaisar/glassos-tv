@@ -465,6 +465,18 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
             .start()
     }
 
+    /**
+     * Its home is going away, possibly with the panel open (the overlay hands over to MainActivity that way): stops
+     * the once-a-second countdown, which would otherwise repost itself for good and keep the home alive, and the
+     * media session callback.
+     */
+    fun release() {
+        isOpen = false
+        subView = null
+        ui.removeCallbacksAndMessages(null)
+        unwatchSession()
+    }
+
     /** Back: leaves a sub-view first, then closes. */
     fun back() {
         val s = subView

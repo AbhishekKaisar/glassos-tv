@@ -141,6 +141,8 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
         Backdrop.removeListener(backdropListener)
         Backdrop.removeFrameListener(frameListener)
         hero.release()
+        // The overlay is removed with Control Center open when it hands over to MainActivity.
+        if (::cc.isInitialized) cc.release()
         labelAnim?.cancel()
         main.removeCallbacksAndMessages(null)
         worker.shutdownNow()
