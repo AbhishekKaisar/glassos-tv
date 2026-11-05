@@ -84,6 +84,9 @@ keyPassword=...
 
 Without it, `assembleRelease` builds an unsigned APK. Contributors do not need this.
 
+With each release, update the APK name and its direct link in the README's Install section: releases are
+pre-releases, so GitHub's `releases/latest` link does not find them.
+
 ## Licence
 
 GlassOS is licensed under the GNU GPL v3. By contributing you agree that your work is licensed under the same terms.

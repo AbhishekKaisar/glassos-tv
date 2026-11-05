@@ -48,8 +48,14 @@ on the Android TV emulator.
 
 ## Install
 
-GlassOS is not in Google Play or the Amazon Appstore. Download `GlassOS-v1.0.1-beta.apk` from the
-[Releases](https://github.com/AbhishekKaisar/glassos-tv/releases) page.
+GlassOS is not in Google Play or the Amazon Appstore. Download `GlassOS-v1.0.2-beta.apk` from the
+[Releases](https://github.com/AbhishekKaisar/glassos-tv/releases) page, or type its direct link into Downloader:
+
+```
+https://github.com/AbhishekKaisar/glassos-tv/releases/download/v1.0.2-beta/GlassOS-v1.0.2-beta.apk
+```
+
+GlassOS releases are betas, so GitHub's usual `releases/latest` link does not work for them.
 
 ### Android TV and Google TV
 
@@ -57,7 +63,7 @@ GlassOS is not in Google Play or the Amazon Appstore. Download `GlassOS-v1.0.1-b
    sources (on Google TV: Settings > System > Apps > Security & restrictions > Unknown sources), and turn it on
    for the app you use below.
 2. Install with one of:
-   - **Downloader** (by AFTVnews, in Google Play): enter the APK's URL from the Releases page.
+   - **Downloader** (by AFTVnews, in Google Play): enter the direct link above.
    - **Send Files to TV**: send the APK from your phone, then open it on the TV.
    - **adb from a computer** (see below).
 3. Open GlassOS. Setup starts on its own.
@@ -67,14 +73,14 @@ GlassOS is not in Google Play or the Amazon Appstore. Download `GlassOS-v1.0.1-b
 1. Settings > My Fire TV > Developer options: turn on **Apps from Unknown Sources** (or, on newer Fire OS,
    **Install unknown apps** for Downloader). No Developer options? Open Settings > My Fire TV > About and press OK
    on your device name 7 times.
-2. Install **Downloader** from the Appstore, open it and enter the APK's URL from the Releases page.
+2. Install **Downloader** from the Appstore, open it and enter the direct link above.
 3. Install, then open GlassOS. Setup starts on its own.
 
 ### With adb from a computer
 
 ```sh
 adb connect <tv-ip>:5555
-adb install GlassOS-v1.0.1-beta.apk
+adb install GlassOS-v1.0.2-beta.apk
 adb shell am start -n io.github.abhishekkaisar.glassos/.MainActivity
 ```
 

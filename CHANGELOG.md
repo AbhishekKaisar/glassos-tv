@@ -32,6 +32,8 @@
 - Top Shelf: two more sources in Settings > Top Shelf, TMDB trending today and TMDB trending this week, which show
   TMDB's trending titles whatever service they are on. Every title source now starts in a new order each time
   GlassOS starts (#29).
+- README: the install section names the current APK and gives its direct link to type into Downloader; GitHub's
+  `releases/latest` link does not work for pre-releases (#21).
 
 ## 1.0.2-beta (2026-10-23)
 
