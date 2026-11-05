@@ -479,7 +479,7 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
             14f, 0xD9FFFFFF.toInt()).apply { gravity = Gravity.CENTER_HORIZONTAL }
         box.addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dpi(10f) })
         grantRows = ArrayList()
-        for (g in Grants.ALL) {
+        for (g in Grants.available(context)) {
             val r = RowView(context, g.title).apply { isFocusable = false; isClickable = false }
             r.titleView.textSize = 16f
             r.valueView.textSize = 15f
@@ -509,20 +509,27 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
         granting = true
         waitingForPrompt = false
         val id = ++attempt
-        status.text = "Connecting to the TV's ADB…"
+        val rooted = RootShell.available()
+        status.text = if (rooted) "Allow GlassOS when your root manager asks…" else "Connecting to the TV's ADB…"
         Thread {
             var msg: String
             try {
-                AdbClient.connect(context, onPrompt = {
-                    ui.post { if (id == attempt) { waitingForPrompt = true; status.text = "Choose Allow on the TV's prompt (tick Always allow)." } }
-                }).use { adb ->
-                    prefs.adbBlockedBuild = ""
+                // A rooted TV grants with root, no ADB debugging needed; if root is refused, the TV's ADB is next.
+                val root = if (rooted) try { RootShell.open() } catch (e: Throwable) { WLog.i("root: $e"); null } else null
+                if (root != null) root.use { sh ->
                     if (id != attempt) return@Thread
-                    ui.post { if (id == attempt) { waitingForPrompt = false; status.text = "Connected. Granting…" } }
-                    val r = Grants.run(context, adb)
-                    val missing = r.ok.filterValues { !it }.keys.map { it.title }
-                    msg = if (missing.isEmpty()) "All set: every permission is granted. You can turn ADB debugging off again."
-                    else "Could not grant: ${missing.joinToString(", ")}. ${r.log.lineSequence().firstOrNull() ?: ""}"
+                    ui.post { if (id == attempt) status.text = "Granting with root…" }
+                    msg = grantResult(Grants.run(context) { sh.shell(it) }, adb = false)
+                } else {
+                    if (rooted) ui.post { if (id == attempt) status.text = "Root was not allowed. Connecting to the TV's ADB…" }
+                    AdbClient.connect(context, onPrompt = {
+                        ui.post { if (id == attempt) { waitingForPrompt = true; status.text = "Choose Allow on the TV's prompt (tick Always allow)." } }
+                    }).use { adb ->
+                        prefs.adbBlockedBuild = ""
+                        if (id != attempt) return@Thread
+                        ui.post { if (id == attempt) { waitingForPrompt = false; status.text = "Connected. Granting…" } }
+                        msg = grantResult(Grants.run(context) { adb.shell(it) }, adb = true)
+                    }
                 }
             } catch (e: Throwable) {
                 WLog.i("adb: grants failed: $e")
@@ -541,11 +548,20 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
         }.start()
     }
 
+    /** What a grant run did, in words. */
+    private fun grantResult(r: Grants.Result, adb: Boolean): String {
+        val missing = r.ok.filterValues { !it }.keys.map { it.title }
+        return if (missing.isEmpty()) "All set: every permission is granted." + if (adb) " You can turn ADB debugging off again." else ""
+        else "Could not grant: ${missing.joinToString(", ")}. ${r.log.lineSequence().firstOrNull() ?: ""}"
+    }
+
     /**
-     * How to turn on ADB for the one-tap grants, for this platform. A Fire TV whose ADB kept GlassOS out before (and
-     * has not been updated since) gets the computer steps first.
+     * How to turn on ADB for the one-tap grants, for this platform. A rooted TV needs no ADB: Set Up asks for root.
+     * A Fire TV whose ADB kept GlassOS out before (and has not been updated since) gets the computer steps first.
      */
     private fun howTo(): String = when {
+        RootShell.available() ->
+            "This TV is rooted: choose Set Up, then allow GlassOS when your root manager asks. No ADB debugging needed."
         fireTv && prefs.adbBlockedBuild == Build.FINGERPRINT ->
             "This Fire TV kept GlassOS out of its ADB last time. ${computerGrants()} Or choose Set Up to try again."
         fireTv ->
@@ -679,7 +695,7 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
             val msg: String = try {
                 AdbClient.connect(context, onPrompt = {
                     ui.post { if (id == attempt) status.text = "Choose Allow on the TV's prompt (tick Always allow)." }
-                }).use { adb -> Grants.setHome(context, adb) }
+                }).use { adb -> Grants.setHome(context) { adb.shell(it) } }
                 if (Platform.isDefaultHome(context)) "" else
                     "This TV keeps its own home app. GlassOS comes back after Home on its own instead (needs Usage access and Display over other apps)."
             } catch (e: Throwable) { adbError(e) }

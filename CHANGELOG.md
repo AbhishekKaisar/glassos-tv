@@ -22,6 +22,29 @@
   Android TV), then done. The country follows the TV's region and the profile photo is optional, so both moved to
   Settings, which now shows the country in use instead of "Not set". The last step no longer says a long press adds
   an app to the top row; it says to hold OK to move it.
+- TVs with no device admin at all, such as the Nvidia Shield, no longer list Device admin as a permission that cannot
+  be granted, and Control Center leaves out Sleep and the sleep timer there instead of failing. The README and
+  AGENTS.md note that the Shield turns its stock launcher back on at every restart (#31).
+- GlassOS no longer prepares the Home overlay when the home watcher cannot run, for example when it is the default
+  home app: that prepared home was never shown, and it held a full home's views in memory while other apps ran.
+- A small shield shows before the time in the profile pill while a VPN is connected, so you can see it without
+  opening Control Center (#26).
+- Top Shelf: two more sources in Settings > Top Shelf, TMDB trending today and TMDB trending this week, which show
+  TMDB's trending titles whatever service they are on. Every title source now starts in a new order each time
+  GlassOS starts (#29).
+- README: the install section names the current APK and gives its direct link to type into Downloader; GitHub's
+  `releases/latest` link does not work for pre-releases (#21).
+- README: a Companion apps section, starting with TV Button, which brings back recent apps on Google TV once the
+  stock launcher is off (#28).
+- One-tap permissions on rooted TVs: Set Up asks the root manager and runs the same grants as root, with no ADB
+  debugging needed, and falls back to the TV's ADB if root is refused (#9).
+- Control Center: an Inputs button on TVs with HDMI or other inputs (Fire TV Edition TVs, the Fire TV Cube, Android
+  TVs). It lists the inputs by the names given on the TV and opens one in the TV's own player; with a single input it
+  opens that one at once (#11).
+- Settings > Reduce transparency, like the tvOS accessibility option: every panel, the shelf and the profile pill draw
+  a solid base instead of the blurred art, and the drawer a solid ground. Off by default (#10).
+- Custom app icons: an image in Pictures/Glass/icons named after an app (or its package) replaces that app's tile
+  art, as a banner when wide or as an icon when square. Changes there show on coming back to Home (#32).
 
 ## 1.0.2-beta (2026-10-23)
 

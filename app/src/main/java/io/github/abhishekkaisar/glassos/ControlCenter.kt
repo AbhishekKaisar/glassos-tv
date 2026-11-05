@@ -27,7 +27,7 @@ import android.widget.TextView
 import android.widget.Toast
 
 /** Line glyphs for Control Center, drawn in a box of side s centred on (cx, cy). No vector assets. */
-enum class Glyph { NONE, POWER, WIFI, MOON, SPEAKER, TIMER, GAMEPAD, ACCESS, LOCK, GEAR, PEOPLE, PLAY, PAUSE, PREV, NEXT, SHIELD, TOGGLES, NOTE, CHECK, CLOSE, OPEN }
+enum class Glyph { NONE, POWER, WIFI, MOON, SPEAKER, TIMER, GAMEPAD, ACCESS, LOCK, GEAR, PEOPLE, PLAY, PAUSE, PREV, NEXT, SHIELD, TOGGLES, NOTE, CHECK, CLOSE, OPEN, INPUT }
 
 object Glyphs {
     private val path = Path()
@@ -211,6 +211,14 @@ object Glyphs {
                 c.drawLine(cx - h * 0.45f, cy + h * 0.45f, cx + h * 0.55f, cy - h * 0.55f, p)
                 c.drawLine(cx - h * 0.1f, cy - h * 0.55f, cx + h * 0.55f, cy - h * 0.55f, p)
                 c.drawLine(cx + h * 0.55f, cy - h * 0.55f, cx + h * 0.55f, cy + h * 0.1f, p)
+            }
+            Glyph.INPUT -> {
+                // A screen with an arrow coming into it from the left.
+                r.set(cx - h * 0.4f, cy - h * 0.7f, cx + h * 0.92f, cy + h * 0.6f)
+                c.drawRoundRect(r, h * 0.16f, h * 0.16f, p)
+                c.drawLine(cx - h * 0.95f, cy - h * 0.05f, cx + h * 0.38f, cy - h * 0.05f, p)
+                c.drawLine(cx + h * 0.08f, cy - h * 0.35f, cx + h * 0.38f, cy - h * 0.05f, p)
+                c.drawLine(cx + h * 0.08f, cy + h * 0.25f, cx + h * 0.38f, cy - h * 0.05f, p)
             }
         }
         p.style = Paint.Style.FILL
@@ -562,8 +570,11 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
 
     private fun buildGeneral() {
         val ctx = context
-        val power = button(Glyph.POWER, "Sleep") { close(instant = true) { Power.sleep(ctx) } }
         val fireTv = Platform.isFireTv(ctx)
+        // Without device admin at all (the Nvidia Shield) an Android TV app cannot sleep the TV; Fire TV still opens
+        // its own sleep menu.
+        val canSleep = fireTv || Power.supported(ctx)
+        val power = if (!canSleep) null else button(Glyph.POWER, "Sleep") { close(instant = true) { Power.sleep(ctx) } }
         val wifi = button(Glyph.WIFI, Net.networkName(ctx)) {
             if (fireTv) open(FireIntents.wifi(), FireIntents.SETTINGS_PKG) else openStd(android.provider.Settings.ACTION_WIFI_SETTINGS)
         }
@@ -572,7 +583,13 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         val audio = button(Glyph.SPEAKER, "Audio") {
             if (fireTv) open(FireIntents.audio(), FireIntents.SETTINGS_PKG, "Choose Display & Audio") else openStd(android.provider.Settings.ACTION_SOUND_SETTINGS)
         }
-        val timer = button(Glyph.TIMER, "Sleep Timer") { showTimerChoices() }.apply {
+        // HDMI and other inputs, only on TVs that have them (Fire TV Edition TVs, the Cube): one opens at once.
+        val inputs = TvInputs.list(ctx)
+        val input = if (inputs.isEmpty()) null else button(Glyph.INPUT, "Inputs") {
+            val only = inputs.singleOrNull()
+            if (only != null) open(only.intent, Platform.handler(ctx, only.intent)) else showInputs(inputs)
+        }
+        val timer = if (!canSleep) null else button(Glyph.TIMER, "Sleep Timer") { showTimerChoices() }.apply {
             text = SleepTimer.remaining(ctx); on = text != null
         }
         timerButton = timer
@@ -597,7 +614,25 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
             else button(Glyph.LOCK, "Parental") { open(FireIntents.parental(), "com.amazon.tv.parentalcontrols", "Choose Preferences, then Parental Controls") }
         val fire = button(Glyph.OPEN, "TV Settings") { close(instant = true) { home.openFireSettings() } }
         val gear = button(Glyph.GEAR, "GlassOS") { close(instant = true) { home.openSettings() } }
-        body.addView(grid(listOfNotNull(power, wifi, dnd, audio, timer, pads, acc, pc, fire, gear)))
+        body.addView(grid(listOfNotNull(power, wifi, dnd, audio, input, timer, pads, acc, pc, fire, gear)))
+    }
+
+    /** The TV's inputs, by name; OK opens one in the TV's player, Back returns to General. */
+    private fun showInputs(inputs: List<TvInputs.Input>) = rebuild {
+        body.removeAllViews()
+        title.text = "Inputs"
+        val ctx = context
+        val items = inputs.map { inp ->
+            CcButton(ctx, btn, cell, Glyph.INPUT, inp.label).apply {
+                id = View.generateViewId()
+                onClick = { open(inp.intent, Platform.handler(ctx, inp.intent)) }
+            }
+        }
+        body.addView(grid(items))
+        linkUp()
+        subView = { showTab(Tab.GENERAL) }
+        firstButton()?.requestFocus()
+        invalidateDeep(panel)
     }
 
     /** A standard Settings page (Android TV and Google TV). */

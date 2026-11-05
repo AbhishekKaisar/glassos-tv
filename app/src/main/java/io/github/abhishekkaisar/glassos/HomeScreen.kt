@@ -123,6 +123,7 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
     }
 
     init {
+        GlassPainter.solid = prefs.reduceTransparency
         Backdrop.addListener(backdropListener)
         Backdrop.addFrameListener(frameListener)
         buildUi()
@@ -416,6 +417,14 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
 
     fun openAmazonHome() = HomeWatcher.openAmazonHome(ctx)
 
+    /** Settings > Reduce transparency: every glass surface turns solid, or back to glass, at once. */
+    fun setReduceTransparency(on: Boolean) {
+        prefs.reduceTransparency = on
+        GlassPainter.solid = on
+        // Every home screen (this one and the other window's) redraws its glass.
+        Backdrop.changed()
+    }
+
     fun setReplaceHome(on: Boolean) {
         prefs.replaceHome = on
         HomeWatcher.sync(ctx)
@@ -490,6 +499,8 @@ class HomeScreen(val ctx: Context, private val host: HomeHost, seed: HomeScreen?
         if (!::gear.isInitialized) return
         val fmt = if (android.text.format.DateFormat.is24HourFormat(ctx)) "H:mm" else "h:mm a"
         gear.time = android.text.format.DateFormat.format(fmt, System.currentTimeMillis()).toString().uppercase()
+        // With the clock: when Glass comes to the front (after the VPN app, say) and every minute.
+        gear.vpn = Net.vpnActive(ctx)
     }
 
     private fun storageGranted() = Build.VERSION.SDK_INT < 23 ||

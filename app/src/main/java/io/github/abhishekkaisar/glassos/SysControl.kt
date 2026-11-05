@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -55,6 +56,14 @@ object Power {
     fun removeAdmin(ctx: Context) {
         try { (ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager).removeActiveAdmin(admin(ctx)) } catch (e: Throwable) { }
     }
+
+    /**
+     * False on TVs with no device admin at all (the Nvidia Shield declares no android.software.device_admin): there
+     * `dpm set-active-admin` prints Success and changes nothing, so the grant and Sleep are not offered.
+     */
+    fun supported(ctx: Context): Boolean = try {
+        ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN)
+    } catch (e: Throwable) { true }
 
     fun adminActive(ctx: Context): Boolean = try {
         (ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager).isAdminActive(admin(ctx))
@@ -201,4 +210,25 @@ class NowPlaying(val controller: MediaController, val title: String, val subtitl
             return null
         }
     }
+}
+
+/**
+ * The TV's HDMI and other passthrough inputs (Fire TV Edition TVs, the Fire TV Cube, Android TVs with inputs), for
+ * Control Center. Inputs are not installed apps, so the drawer cannot show them; each one opens in the TV's own player.
+ */
+object TvInputs {
+    class Input(val label: String, val intent: Intent)
+
+    /** Every passthrough input the TV's player can open, by the name the user gave it. Empty on sticks and boxes. */
+    fun list(ctx: Context): List<Input> = try {
+        val tim = ctx.getSystemService(Context.TV_INPUT_SERVICE) as? android.media.tv.TvInputManager
+        tim?.tvInputList.orEmpty()
+            .filter { it.isPassthroughInput && !(Build.VERSION.SDK_INT >= 24 && it.isHidden(ctx)) }
+            .mapNotNull { info ->
+                val i = Intent(Intent.ACTION_VIEW, android.media.tv.TvContract.buildChannelUriForPassthroughInput(info.id))
+                if (i.resolveActivity(ctx.packageManager) == null) return@mapNotNull null
+                val custom = if (Build.VERSION.SDK_INT >= 24) info.loadCustomLabel(ctx)?.toString() else null
+                Input(custom?.takeIf { it.isNotBlank() } ?: info.loadLabel(ctx).toString(), i)
+            }
+    } catch (e: Throwable) { emptyList() }
 }

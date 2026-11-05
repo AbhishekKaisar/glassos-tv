@@ -17,6 +17,16 @@ import android.view.View
  * Each painter owns its own shaders, because on API 25 shader matrices are shared by reference.
  */
 class GlassPainter {
+    companion object {
+        /**
+         * Settings > Reduce transparency (tvOS's accessibility option): every glass surface draws a solid base instead
+         * of the blurred art behind it, under the same tint and rim. Easier to read, and one textured pass less.
+         */
+        @JvmStatic var solid = false
+        /** The base without art: the solid panels, and glass before the first slide has loaded. */
+        const val SOLID_BASE = 0xFF141A30.toInt()
+    }
+
     var tint = 0.14f
     var tintColor = Color.WHITE
     var dark = 0f
@@ -64,14 +74,14 @@ class GlassPainter {
 
     fun draw(c: Canvas, v: View, r: RectF, radius: Float) {
         val a = Backdrop.a
-        if (a.bmp != null) {
+        if (a.bmp != null && !solid) {
             viewToWindow(v, m)
             m.invert(inv)
             layer(c, r, radius, a, back, true)
             val b = Backdrop.b
             if (b.bmp != null && b.alpha > 0.004f) layer(c, r, radius, b, backB, false)
         } else {
-            fill.color = 0xFF141A30.toInt()
+            fill.color = SOLID_BASE
             c.drawRoundRect(r, radius, radius, fill)
         }
         if (cacheStatic) { drawStatic(c, r, radius); return }

@@ -366,6 +366,9 @@ class UserPill(ctx: Context) : View(ctx) {
         }
     var time = ""
         set(v) { if (v != field) { field = v; requestLayout(); invalidate() } }
+    /** A VPN is connected: a small shield before the time, like the VPN badge in a phone's status bar. */
+    var vpn = false
+        set(v) { if (v != field) { field = v; requestLayout(); invalidate() } }
 
     private val glass = GlassPainter().apply {
         tint = 0.20f; tintColor = 0xFFFFF4E8.toInt(); sheen = 0.10f; highlight = 0.40f; border = 0.14f; stroke = ctx.dp(0.6f)
@@ -389,6 +392,12 @@ class UserPill(ctx: Context) : View(ctx) {
     private val inset = ctx.dp(2.5f)
     private val padL = ctx.dp(11f)
     private val gapT = ctx.dp(7f)
+    // The VPN shield: the Control Center VPN tab's outline at the height of the time's digits.
+    private val shieldH = ctx.dp(5.6f)
+    private val shieldW = shieldH * 1.44f
+    private val shieldGap = ctx.dp(5f)
+    private val shield = Path()
+    private val shieldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
 
     init {
         isFocusable = true
@@ -397,8 +406,10 @@ class UserPill(ctx: Context) : View(ctx) {
         setOnClickListener { onClick?.invoke() }
     }
 
+    private val shieldSpace get() = if (vpn) shieldW + shieldGap else 0f
+
     override fun onMeasure(w: Int, hs: Int) {
-        val width = padL + timeText.measureText(time) + gapT + av + inset
+        val width = padL + shieldSpace + timeText.measureText(time) + gapT + av + inset
         setMeasuredDimension(Math.ceil(width.toDouble()).toInt(), h)
     }
 
@@ -460,7 +471,18 @@ class UserPill(ctx: Context) : View(ctx) {
             shadowStep = q
             if (q > 0) timeText.setShadowLayer(dp(3f), 0f, dp(0.5f), alphaOf(Color.BLACK, 0.35f * q / 8f)) else timeText.clearShadowLayer()
         }
-        c.drawText(time, padL, cy - (timeText.ascent() + timeText.descent()) / 2, timeText)
+        if (vpn) {
+            val sx = padL + shieldW / 2
+            val s = shieldH
+            shield.reset()
+            shield.moveTo(sx, cy - s * 0.9f)
+            shield.lineTo(sx + s * 0.72f, cy - s * 0.6f)
+            shield.cubicTo(sx + s * 0.72f, cy + s * 0.2f, sx + s * 0.4f, cy + s * 0.66f, sx, cy + s * 0.92f)
+            shield.cubicTo(sx - s * 0.4f, cy + s * 0.66f, sx - s * 0.72f, cy + s * 0.2f, sx - s * 0.72f, cy - s * 0.6f)
+            shield.close()
+            c.drawPath(shield, shieldPaint)
+        }
+        c.drawText(time, padL + shieldSpace, cy - (timeText.ascent() + timeText.descent()) / 2, timeText)
 
         val cx = width - inset - av / 2
         val bmp = avatar

@@ -64,6 +64,8 @@ class MainActivity : Activity(), HomeHost {
         main.removeCallbacks(prepareOverlay)
         HomeOverlay.discardSpare()
         home.onResumed()
+        // Icons added to or changed in Pictures/Glass/icons show when Glass is back in front.
+        if (AppRepo.customArtChanged(this)) home.loadApps { HomeOverlay.appsChanged() }
         HomeWatcher.sync(this)
         takeOverFromOverlay()
     }

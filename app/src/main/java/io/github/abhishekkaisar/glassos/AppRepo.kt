@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -12,6 +13,7 @@ import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.util.DisplayMetrics
+import java.io.File
 
 class AppEntry(val pkg: String, val label: String, val art: Bitmap?, val isBanner: Boolean, val color: Int)
 
@@ -56,8 +58,33 @@ object AppRepo {
         return out
     }
 
+    private val EXTS = setOf("png", "jpg", "jpeg", "webp")
+
+    /** Custom tile art: an image per app in Pictures/Glass/icons, named after the app ("Netflix.png") or its package. */
+    fun iconsDir(): File = File(WallpaperStore.userDir(), "icons")
+
+    /** Letters and digits in lower case, so "Prime Video.png" and "primevideo.png" both match Prime Video. */
+    private fun norm(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
+
+    /** Images in [iconsDir] by normalised name. Empty without storage access. */
+    private fun customArt(ctx: Context): Map<String, File> = if (!Grants.storage(ctx)) emptyMap() else try {
+        iconsDir().listFiles()?.filter { it.isFile && it.extension.lowercase() in EXTS && norm(it.nameWithoutExtension).isNotEmpty() }
+            ?.associateBy { norm(it.nameWithoutExtension) } ?: emptyMap()
+    } catch (e: Throwable) { emptyMap() }
+
+    private fun customStamp(ctx: Context): String = if (!Grants.storage(ctx)) "" else try {
+        iconsDir().listFiles()?.sortedBy { it.name }?.joinToString("|") { "${it.name}:${it.length()}:${it.lastModified()}" } ?: ""
+    } catch (e: Throwable) { "" }
+
+    @Volatile private var loadedStamp: String? = null
+
+    /** True when Pictures/Glass/icons changed since the app list was loaded: Glass reloads it on coming back. */
+    fun customArtChanged(ctx: Context): Boolean = loadedStamp.let { it != null && it != customStamp(ctx) }
+
     fun load(ctx: Context): List<AppEntry> {
         val pm = ctx.packageManager
+        loadedStamp = customStamp(ctx)
+        val custom = customArt(ctx)
         val map = LinkedHashMap<String, ResolveInfo>()
         for (cat in listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)) {
             val list = try { pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(cat), 0) } catch (e: Exception) { emptyList<ResolveInfo>() }
@@ -67,13 +94,19 @@ object AppRepo {
                 map[pkg] = ri
             }
         }
-        return map.values.map { entry(ctx, it) }.sortedBy { it.label.lowercase() }
+        return map.values.map { entry(ctx, it, custom) }.sortedBy { it.label.lowercase() }
     }
 
-    private fun entry(ctx: Context, ri: ResolveInfo): AppEntry {
+    private fun entry(ctx: Context, ri: ResolveInfo, custom: Map<String, File>): AppEntry {
         val pm = ctx.packageManager
         val ai = ri.activityInfo
         val label = (ri.loadLabel(pm)?.toString() ?: ai.packageName).trim()
+        // The user's own art for this app comes first.
+        (custom[norm(label)] ?: custom[norm(ai.packageName)])?.let { f ->
+            customTile(ctx, f)?.let { (art, banner) ->
+                return AppEntry(ai.packageName, label, art, banner, if (banner) 0xFF2A3350.toInt() else dominant(art))
+            }
+        }
         var d: Drawable? = null
         var banner = false
         try {
@@ -93,6 +126,25 @@ object AppRepo {
         val color = if (art != null && !banner) dominant(art) else 0xFF2A3350.toInt()
         return AppEntry(ai.packageName, label, art, banner, color)
     }
+
+    /** Custom art from [f]: a wide image fills the tile like a TV banner, any other sits centred like an icon. */
+    private fun customTile(ctx: Context, f: File): Pair<Bitmap, Boolean>? = try {
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(f.path, o)
+        when {
+            o.outWidth <= 0 || o.outHeight <= 0 -> null
+            o.outWidth >= o.outHeight * 1.4f -> WallpaperStore.decodeCrop(f, 400, 225)?.let { it to true }
+            else -> {
+                var sample = 1
+                while (o.outWidth / (sample * 2) >= 192 && o.outHeight / (sample * 2) >= 192) sample *= 2
+                BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sample })?.let { src ->
+                    val art = render(BitmapDrawable(ctx.resources, src), 192, 192)
+                    src.recycle()
+                    art to false
+                }
+            }
+        }
+    } catch (e: Throwable) { null }
 
     /** Average of the opaque, reasonably saturated pixels, used as the backdrop of icon-only tiles. */
     private fun dominant(b: Bitmap): Int {
