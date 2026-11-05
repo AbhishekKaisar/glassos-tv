@@ -47,6 +47,8 @@
   art, as a banner when wide or as an icon when square. Changes there show on coming back to Home (#32).
 - Sleep timer: a timer set before the TV restarted no longer keeps counting down in Control Center. The restart had
   dropped its alarm, so it would never have put the TV to sleep.
+- One-tap permissions: when the TV's ADB stops answering before any prompt, setup no longer says "No answer from the
+  TV's prompt"; it treats it as the TV closing its ADB (on Fire TV, the computer steps) and does not wait twice.
 
 ## 1.0.2-beta (2026-10-23)
 
