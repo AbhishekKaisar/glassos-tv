@@ -29,10 +29,14 @@ class Prefs(ctx: Context) {
 
     val effectiveTmdbKey: String get() = tmdbKey.ifEmpty { BuildConfig.TMDB_API_KEY }
 
-    /** ISO 3166 country code for the Top Shelf region (streaming availability). */
+    /** ISO 3166 country code for the Top Shelf region (streaming availability), once chosen in Settings. */
     var country: String
         get() = sp.getString("country", "") ?: ""
         set(v) { sp.edit().putString("country", v).apply() }
+
+    /** The region in use: [country], or the TV's own until one is chosen (setup does not ask), else US. */
+    val effectiveCountry: String
+        get() = country.ifEmpty { java.util.Locale.getDefault().country }.ifEmpty { "US" }.uppercase()
 
     var replaceHome: Boolean
         get() = sp.getBoolean("replaceHome", true)
@@ -63,6 +67,11 @@ class Prefs(ctx: Context) {
     var askedStorage: Boolean
         get() = sp.getBoolean("askedStorage", false)
         set(v) { sp.edit().putBoolean("askedStorage", v).apply() }
+
+    /** Build.FINGERPRINT of a Fire OS build that kept GlassOS out of its own ADB; setup then leads with a computer. */
+    var adbBlockedBuild: String
+        get() = sp.getString("adbBlockedBuild", "") ?: ""
+        set(v) { sp.edit().putString("adbBlockedBuild", v).apply() }
 
     companion object {
         const val DEFAULT_SCENE = "scene:desert"

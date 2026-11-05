@@ -6,6 +6,22 @@
   and the first top row app no longer stays enlarged for a moment. Package broadcasts that change nothing shown now
   refresh the tiles in place instead of rebuilding them (and no longer cancel an app being moved), and only a key
   press plays the focus sound (#16).
+- Edit top row: an app being moved no longer snaps back when Fire OS sends a package broadcast that changes nothing
+  shown; the move carries on where it is (#23).
+- A package broadcast no longer throws away the home GlassOS prepares for the Home button: it takes the new app list
+  and stays ready, so Home covers the stock home as fast after app updates as before them (#24).
+- Fire TV setup: any refusal from the TV's own ADB other than debugging being off now points to the grants from a
+  computer, like a closed connection, instead of "turn debugging off and on" (late Fire OS 6 refuses differently).
+  On Fire OS 5 and 6 it names their notification access command, and the next visit leads with the computer steps
+  until Fire OS is updated (#20).
+- Android TV: when GlassOS is the default home app, Settings shows "Replace Android TV home" dimmed as "Not needed"
+  and focus passes over it, instead of reading On for a watcher that does not run (#2).
+- Setup: the welcome logo is sharp. It was the 96 px launcher icon stretched to 240 px; it now comes from a vector
+  source of the same design (docs/logo.svg), rendered at 480 px. The launcher icon itself is unchanged (#1).
+- Shorter first-run setup, like the Apple TV's: welcome, name, top row, permissions (and the home screen step on
+  Android TV), then done. The country follows the TV's region and the profile photo is optional, so both moved to
+  Settings, which now shows the country in use instead of "Not set". The last step no longer says a long press adds
+  an app to the top row; it says to hold OK to move it.
 
 ## 1.0.2-beta (2026-10-23)
 

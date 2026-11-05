@@ -123,15 +123,31 @@ object HomeOverlay {
         if (!Prefs(ctx).replaceHome) return
         val t0 = SystemClock.uptimeMillis()
         val s = build(ctx)
-        // Measure and lay it out now, so adding the window only has to draw it.
-        s.root.measure(View.MeasureSpec.makeMeasureSpec(Backdrop.screenW, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(Backdrop.screenH, View.MeasureSpec.EXACTLY))
-        s.root.layout(0, 0, Backdrop.screenW, Backdrop.screenH)
+        layOut(s)
         spare = s
         WLog.i("overlay prepared in ${SystemClock.uptimeMillis() - t0} ms")
     }
 
-    /** Drops the prepared home (Glass is in front again, or the app list changed). */
+    /** Measures and lays out a home that is not in a window yet, so adding the window only has to draw it. */
+    private fun layOut(s: HomeScreen) {
+        s.root.measure(View.MeasureSpec.makeMeasureSpec(Backdrop.screenW, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(Backdrop.screenH, View.MeasureSpec.EXACTLY))
+        s.root.layout(0, 0, Backdrop.screenW, Backdrop.screenH)
+    }
+
+    /**
+     * MainActivity loaded the app list again after a package broadcast: the prepared home takes it and stays ready.
+     * Most broadcasts change nothing shown (Fire OS sends them for updates and component changes), and then its
+     * tiles only get the new art and labels. Building the home again on Home instead is slower to cover the stock
+     * home.
+     */
+    fun appsChanged() {
+        val s = spare ?: return
+        s.takeApps()
+        layOut(s)
+    }
+
+    /** Drops the prepared home (Glass is in front again). */
     fun discardSpare() {
         spare?.release()
         spare = null

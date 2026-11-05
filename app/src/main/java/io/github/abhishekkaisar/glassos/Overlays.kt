@@ -176,7 +176,7 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
         val hiddenCount = act.prefs.hidden.count { p -> HomeShare.apps?.any { it.pkg == p } ?: true }
         hiddenRow.valueView.text = if (hiddenCount == 0) "None" else "$hiddenCount"
         nameRow.valueView.text = act.prefs.name.ifEmpty { "Not set" }
-        countryRow.valueView.text = act.prefs.country.ifEmpty { "Not set" }.let { c -> if (c.length == 2) java.util.Locale("", c).displayCountry else c }
+        countryRow.valueView.text = java.util.Locale("", act.prefs.effectiveCountry).displayCountry
         shelfRow.valueView.text = HeroRepo.sourceLabel(act.prefs.topShelf)
         keyRow.valueView.text = when {
             act.prefs.tmdbKey.isNotEmpty() -> "Your key"
@@ -185,8 +185,11 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
         }
         permsRow.valueView.text = "${Grants.ALL.count { it.isGranted(context) }} of ${Grants.ALL.size}"
         bgRow.valueView.text = WallpaperStore.label(act.prefs.scene)
-        replaceRow.valueView.text = if (act.prefs.replaceHome) "On" else "Off"
-        homeAppRow.valueView.text = if (Platform.isDefaultHome(context)) "GlassOS" else "Not GlassOS"
+        // As the default home, GlassOS opens on Home itself and the watcher never runs: there is nothing to replace.
+        val isHome = Platform.isDefaultHome(context)
+        replaceRow.available = !isHome
+        replaceRow.valueView.text = if (isHome) "Not needed" else if (act.prefs.replaceHome) "On" else "Off"
+        homeAppRow.valueView.text = if (isHome) "GlassOS" else "Not GlassOS"
     }
 
     fun refreshThumbs() {

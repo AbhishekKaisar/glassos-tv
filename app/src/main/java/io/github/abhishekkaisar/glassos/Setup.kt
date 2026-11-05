@@ -30,15 +30,16 @@ private const val REQ_HOME = 8
 
 /**
  * First-run setup in a centred glass panel over the Top Shelf, driven with the D-pad: name (on-screen keyboard),
- * profile photo, country, the apps on the top row, and one-tap permissions over the TV's own ADB. Single steps
- * also open from Settings ([open] with single = true).
+ * the apps on the top row, and one-tap permissions over the TV's own ADB. Kept short, like the Apple TV's: the
+ * country follows the TV's region and the profile photo is optional, so both are single steps opened from Settings
+ * ([open] with single = true), like the other steps there.
  */
 class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
     enum class Step { WELCOME, NAME, PHOTO, COUNTRY, APPS, PERMISSIONS, HOME, DONE, TMDB_KEY, ABOUT, HIDDEN }
 
     /** Fire TV cannot change its home app, so the home step is for Android TV and Google TV only. */
     private val fireTv = Platform.isFireTv(context)
-    private val flow = listOfNotNull(Step.WELCOME, Step.NAME, Step.PHOTO, Step.COUNTRY, Step.APPS, Step.PERMISSIONS,
+    private val flow = listOfNotNull(Step.WELCOME, Step.NAME, Step.APPS, Step.PERMISSIONS,
         if (fireTv) null else Step.HOME, Step.DONE)
     var isOpen = false
         private set
@@ -210,7 +211,8 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
     private fun welcome() {
         title.text = "Welcome to GlassOS"
         subtitle.text = "A calm, glassy home screen for your TV, inspired by tvOS.\nA few quick steps and you are ready."
-        val logo = ImageView(context).apply { setImageResource(R.mipmap.ic_launcher); scaleType = ImageView.ScaleType.FIT_CENTER }
+        // The launcher icon drawn large (docs/logo.svg): the 96 px icon itself is soft at this size.
+        val logo = ImageView(context).apply { setImageResource(R.drawable.logo); scaleType = ImageView.ScaleType.FIT_CENTER }
         body.addView(logo, LayoutParams(dpi(120f), dpi(120f), Gravity.CENTER))
         navButton("Get Started", primary = true) { next() }.requestFocus()
     }
@@ -514,6 +516,7 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
                 AdbClient.connect(context, onPrompt = {
                     ui.post { if (id == attempt) { waitingForPrompt = true; status.text = "Choose Allow on the TV's prompt (tick Always allow)." } }
                 }).use { adb ->
+                    prefs.adbBlockedBuild = ""
                     if (id != attempt) return@Thread
                     ui.post { if (id == attempt) { waitingForPrompt = false; status.text = "Connected. Granting…" } }
                     val r = Grants.run(context, adb)
@@ -522,6 +525,8 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
                     else "Could not grant: ${missing.joinToString(", ")}. ${r.log.lineSequence().firstOrNull() ?: ""}"
                 }
             } catch (e: Throwable) {
+                WLog.i("adb: grants failed: $e")
+                if (blockedOnFire(e)) prefs.adbBlockedBuild = Build.FINGERPRINT
                 msg = adbError(e)
             }
             ui.post {
@@ -536,13 +541,32 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
         }.start()
     }
 
-    /** How to turn on ADB for the one-tap grants, for this platform. */
-    private fun howTo(): String = if (fireTv)
-        "Turn on ADB debugging in Settings > My Fire TV > Developer options, choose Set Up, then choose Allow " +
-            "when the TV asks \"Allow USB debugging?\" (tick Always allow)."
-    else
-        "Turn on USB debugging (or Network debugging) in Settings > Device Preferences > Developer options, choose Set Up, " +
-            "then choose Allow when the TV asks \"Allow USB debugging?\" (tick Always allow)."
+    /**
+     * How to turn on ADB for the one-tap grants, for this platform. A Fire TV whose ADB kept GlassOS out before (and
+     * has not been updated since) gets the computer steps first.
+     */
+    private fun howTo(): String = when {
+        fireTv && prefs.adbBlockedBuild == Build.FINGERPRINT ->
+            "This Fire TV kept GlassOS out of its ADB last time. ${computerGrants()} Or choose Set Up to try again."
+        fireTv ->
+            "Turn on ADB debugging in Settings > My Fire TV > Developer options, choose Set Up, then choose Allow " +
+                "when the TV asks \"Allow USB debugging?\" (tick Always allow)."
+        else ->
+            "Turn on USB debugging (or Network debugging) in Settings > Device Preferences > Developer options, choose Set Up, " +
+                "then choose Allow when the TV asks \"Allow USB debugging?\" (tick Always allow)."
+    }
+
+    /**
+     * True on Fire TV for any failure but nothing listening on the port or no answer to the prompt. Fire OS builds that
+     * block apps from the TV's own ADB (late Fire OS 6, 7.6.6.9 and later, 8.1.0.3 and later) accept the connection,
+     * then close or refuse it in ways that differ between builds; turning debugging off and on does not help there.
+     */
+    private fun blockedOnFire(e: Throwable) =
+        fireTv && e !is java.net.ConnectException && e !is java.net.SocketTimeoutException
+
+    /** The way round a Fire TV that blocks its ADB. Fire OS 5 and 6 need their own notification access command. */
+    private fun computerGrants() = "Run the grants from a computer instead (README: Manual grants" +
+        (if (Build.VERSION.SDK_INT < 26) ", with the Fire OS 5 and 6 notification command)." else ").")
 
     /** A clear message for a failed connection to the TV's own ADB. */
     private fun adbError(e: Throwable): String = when (e) {
@@ -556,12 +580,17 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
         is java.net.SocketTimeoutException -> "No answer from the TV's prompt. Try again and choose Allow."
         is AdbClient.Closed -> if (fireTv)
             "This Fire TV closed its ADB to GlassOS (${e.stage}). Recent Fire OS updates block apps from using the " +
-                "TV's own ADB. Run the grants from a computer instead (README: Manual grants)."
+                "TV's own ADB. ${computerGrants()}"
         else
             "The TV closed the ADB connection (${e.stage}). Turn debugging off and on and try again, or run the grants " +
                 "from a computer (README: Manual grants)."
-        else -> "ADB refused the connection (${e.javaClass.simpleName}: ${e.message}). Turn debugging off and on and " +
-            "try again, or run the grants from a computer (README: Manual grants)."
+        // On Fire TV the same block, refused another way; the class name tells reports which way this build refuses.
+        else -> if (fireTv)
+            "This Fire TV refused GlassOS on its ADB (${e.javaClass.simpleName}: ${e.message}). Recent Fire OS updates " +
+                "block apps from using the TV's own ADB. ${computerGrants()}"
+        else
+            "ADB refused the connection (${e.javaClass.simpleName}: ${e.message}). Turn debugging off and on and " +
+                "try again, or run the grants from a computer (README: Manual grants)."
     }
 
     // ---------- Home app (Android TV and Google TV) ----------
@@ -666,7 +695,7 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
 
     private fun doneStep() {
         title.text = "You are all set"
-        subtitle.text = "Press Menu any time for Control Center. Long press OK on an app to add it to the top row or remove it."
+        subtitle.text = "Press Menu any time for Control Center. Hold OK on an app to move it.\nAdd a profile photo in Control Center > GlassOS."
         val av = AvatarPreview(context, dpi(110f))
         val f = Profile.photoFile(context)
         if (f.exists()) av.bitmap = android.graphics.BitmapFactory.decodeFile(f.path)

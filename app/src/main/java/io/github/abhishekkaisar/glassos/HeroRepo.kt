@@ -141,7 +141,7 @@ object HeroRepo {
         val d = dir(ctx, src)
         try { File(d, "attempt").writeText(System.currentTimeMillis().toString()) } catch (e: Throwable) { }
         val items = if (src == SRC_TMDB) Tmdb.fetch(ctx) else appleItems(d) ?: return false
-        return store(d, items, if (src == SRC_APPLE) "us" else Prefs(ctx).country)
+        return store(d, items, if (src == SRC_APPLE) "us" else Prefs(ctx).effectiveCountry)
     }
 
     private fun appleItems(d: File): List<Item>? {

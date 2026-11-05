@@ -17,7 +17,7 @@ class MainActivity : Activity(), HomeHost {
         private set
 
     private val pkgReceiver = object : BroadcastReceiver() {
-        override fun onReceive(c: Context, i: Intent) { HomeOverlay.discardSpare(); home.loadApps() }
+        override fun onReceive(c: Context, i: Intent) { home.loadApps { HomeOverlay.appsChanged() } }
     }
     private val timeReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) { home.updateTime() }
