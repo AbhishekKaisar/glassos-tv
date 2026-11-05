@@ -110,6 +110,9 @@ adb shell pm disable-user --user 0 com.google.android.tvlauncher
 adb shell pm enable com.google.android.tvlauncher
 ```
 
+The Nvidia Shield turns its stock launcher back on at every restart, so Home opens it again: run the command again
+after a restart, or leave the launcher on and let GlassOS cover it.
+
 ### Fire TV
 
 Fire OS does not let apps replace its home. GlassOS watches for the Fire TV home and covers it, which needs Usage
@@ -145,7 +148,7 @@ Every feature works without its permission, with less:
 | Usage access | Noticing the stock home after the Home button (not needed when GlassOS is the default home) | Home goes to the stock home; open GlassOS from your apps |
 | Display over other apps | Showing GlassOS at once after Home | GlassOS still comes back, a moment later |
 | Notification access | Now Playing and Do Not Disturb | Those tiles are hidden or open the TV's settings |
-| Device admin | Sleep and the sleep timer | Fire TV: Sleep opens the Fire TV sleep menu. Android TV: Sleep is unavailable |
+| Device admin | Sleep and the sleep timer | Fire TV: Sleep opens the Fire TV sleep menu. Android TV: Sleep is unavailable. TVs with no device admin at all (the Nvidia Shield) do not offer it, or Sleep |
 | Storage | Your profile photo and own backgrounds | The glass avatar and built-in scenes |
 
 GlassOS reads no notifications: notification access is only how Android lets an app see media sessions.

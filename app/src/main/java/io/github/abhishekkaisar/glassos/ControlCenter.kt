@@ -562,8 +562,11 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
 
     private fun buildGeneral() {
         val ctx = context
-        val power = button(Glyph.POWER, "Sleep") { close(instant = true) { Power.sleep(ctx) } }
         val fireTv = Platform.isFireTv(ctx)
+        // Without device admin at all (the Nvidia Shield) an Android TV app cannot sleep the TV; Fire TV still opens
+        // its own sleep menu.
+        val canSleep = fireTv || Power.supported(ctx)
+        val power = if (!canSleep) null else button(Glyph.POWER, "Sleep") { close(instant = true) { Power.sleep(ctx) } }
         val wifi = button(Glyph.WIFI, Net.networkName(ctx)) {
             if (fireTv) open(FireIntents.wifi(), FireIntents.SETTINGS_PKG) else openStd(android.provider.Settings.ACTION_WIFI_SETTINGS)
         }
@@ -572,7 +575,7 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         val audio = button(Glyph.SPEAKER, "Audio") {
             if (fireTv) open(FireIntents.audio(), FireIntents.SETTINGS_PKG, "Choose Display & Audio") else openStd(android.provider.Settings.ACTION_SOUND_SETTINGS)
         }
-        val timer = button(Glyph.TIMER, "Sleep Timer") { showTimerChoices() }.apply {
+        val timer = if (!canSleep) null else button(Glyph.TIMER, "Sleep Timer") { showTimerChoices() }.apply {
             text = SleepTimer.remaining(ctx); on = text != null
         }
         timerButton = timer

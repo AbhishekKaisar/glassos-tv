@@ -11,7 +11,9 @@ import android.provider.Settings
  * grant it. Every feature checks its own permission and does without it (see the README).
  */
 object Grants {
-    class Grant(val title: String, val why: String, val isGranted: (Context) -> Boolean, val commands: (Context) -> List<String>)
+    /** [supported] is false on TVs that cannot hold the grant at all; it is then not offered. */
+    class Grant(val title: String, val why: String, val isGranted: (Context) -> Boolean,
+                val supported: (Context) -> Boolean = { true }, val commands: (Context) -> List<String>)
 
     private fun pkg(ctx: Context) = ctx.packageName
 
@@ -26,7 +28,7 @@ object Grants {
         // needs `cmd notification allow_listener`. Older versions read the setting, which is appended to, never
         // replaced, so other listeners stay enabled.
         Grant("Notification access", "Now Playing and Do Not Disturb", { listenerEnabled(it) }) { listOf("LISTENERS") },
-        Grant("Device admin", "Sleep and the sleep timer", { Power.adminActive(it) }) { c ->
+        Grant("Device admin", "Sleep and the sleep timer", { Power.adminActive(it) }, supported = { Power.supported(it) }) { c ->
             listOf("dpm set-active-admin ${Power.admin(c).flattenToString()}")
         },
         Grant("Storage", "Your profile photo and own backgrounds", { storage(it) }) { c ->
@@ -49,7 +51,10 @@ object Grants {
         }
     } catch (e: Throwable) { false }
 
-    fun allGranted(ctx: Context) = ALL.all { it.isGranted(ctx) }
+    /** The grants this TV can hold: [ALL] less those it does not support (no device admin on the Nvidia Shield). */
+    fun available(ctx: Context) = ALL.filter { it.supported(ctx) }
+
+    fun allGranted(ctx: Context) = available(ctx).all { it.isGranted(ctx) }
 
     /** Result of one grant run: per grant, whether it now holds, and the output of anything that failed. */
     class Result(val ok: Map<Grant, Boolean>, val log: String)
@@ -57,7 +62,8 @@ object Grants {
     /** Runs every missing grant over [adb] and checks each afterwards. Call off the UI thread. */
     fun run(ctx: Context, adb: AdbClient): Result {
         val log = StringBuilder()
-        for (g in ALL) {
+        val grants = available(ctx)
+        for (g in grants) {
             if (g.isGranted(ctx)) continue
             for (cmd in g.commands(ctx)) {
                 val real = if (cmd == "LISTENERS") listenerCommand(ctx, adb) else cmd
@@ -69,7 +75,7 @@ object Grants {
         // Grants land asynchronously on some builds; give them a moment.
         Thread.sleep(400)
         HomeWatcher.sync(ctx)
-        return Result(ALL.associateWith { it.isGranted(ctx) }, log.toString())
+        return Result(grants.associateWith { it.isGranted(ctx) }, log.toString())
     }
 
     /** Makes GlassOS the default home app (Android TV, API 24+). Call off the UI thread. */
@@ -89,12 +95,12 @@ object Grants {
     }
 
     /** The same commands for a computer, for the README and the setup screen. */
-    fun manualCommands(ctx: Context): List<String> = listOf(
+    fun manualCommands(ctx: Context): List<String> = listOfNotNull(
         "adb shell appops set ${pkg(ctx)} GET_USAGE_STATS allow",
         "adb shell appops set ${pkg(ctx)} SYSTEM_ALERT_WINDOW allow",
         if (Build.VERSION.SDK_INT >= 26) "adb shell cmd notification allow_listener ${MediaListener.component(ctx).flattenToString()}"
         else "adb shell settings put secure enabled_notification_listeners ${MediaListener.component(ctx).flattenToString()}",
-        "adb shell dpm set-active-admin ${Power.admin(ctx).flattenToString()}",
+        if (Power.supported(ctx)) "adb shell dpm set-active-admin ${Power.admin(ctx).flattenToString()}" else null,
         "adb shell pm grant ${pkg(ctx)} android.permission.READ_EXTERNAL_STORAGE"
     )
 }

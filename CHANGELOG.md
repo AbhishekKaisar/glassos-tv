@@ -22,6 +22,9 @@
   Android TV), then done. The country follows the TV's region and the profile photo is optional, so both moved to
   Settings, which now shows the country in use instead of "Not set". The last step no longer says a long press adds
   an app to the top row; it says to hold OK to move it.
+- TVs with no device admin at all, such as the Nvidia Shield, no longer list Device admin as a permission that cannot
+  be granted, and Control Center leaves out Sleep and the sleep timer there instead of failing. The README and
+  AGENTS.md note that the Shield turns its stock launcher back on at every restart (#31).
 
 ## 1.0.2-beta (2026-10-23)
 

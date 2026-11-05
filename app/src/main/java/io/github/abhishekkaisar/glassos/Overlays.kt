@@ -183,7 +183,8 @@ class SettingsView(private val act: HomeScreen) : FrameLayout(act.ctx) {
             BuildConfig.TMDB_API_KEY.isNotEmpty() -> "Built in"
             else -> "Not set"
         }
-        permsRow.valueView.text = "${Grants.ALL.count { it.isGranted(context) }} of ${Grants.ALL.size}"
+        val grants = Grants.available(context)
+        permsRow.valueView.text = "${grants.count { it.isGranted(context) }} of ${grants.size}"
         bgRow.valueView.text = WallpaperStore.label(act.prefs.scene)
         // As the default home, GlassOS opens on Home itself and the watcher never runs: there is nothing to replace.
         val isHome = Platform.isDefaultHome(context)

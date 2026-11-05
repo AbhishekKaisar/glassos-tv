@@ -479,7 +479,7 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
             14f, 0xD9FFFFFF.toInt()).apply { gravity = Gravity.CENTER_HORIZONTAL }
         box.addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dpi(10f) })
         grantRows = ArrayList()
-        for (g in Grants.ALL) {
+        for (g in Grants.available(context)) {
             val r = RowView(context, g.title).apply { isFocusable = false; isClickable = false }
             r.titleView.textSize = 16f
             r.valueView.textSize = 15f

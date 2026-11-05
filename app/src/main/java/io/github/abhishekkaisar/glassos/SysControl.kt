@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -55,6 +56,14 @@ object Power {
     fun removeAdmin(ctx: Context) {
         try { (ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager).removeActiveAdmin(admin(ctx)) } catch (e: Throwable) { }
     }
+
+    /**
+     * False on TVs with no device admin at all (the Nvidia Shield declares no android.software.device_admin): there
+     * `dpm set-active-admin` prints Success and changes nothing, so the grant and Sleep are not offered.
+     */
+    fun supported(ctx: Context): Boolean = try {
+        ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN)
+    } catch (e: Throwable) { true }
 
     fun adminActive(ctx: Context): Boolean = try {
         (ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager).isAdminActive(admin(ctx))

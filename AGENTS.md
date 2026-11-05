@@ -148,7 +148,8 @@ Notification access (Now Playing, Do Not Disturb). First find the version: `adb 
   `null` or nothing: `adb shell settings put secure enabled_notification_listeners $P/$P.MediaListener`. If it prints
   something, keep it and append after a colon: `...listeners "<existing>:$P/$P.MediaListener"`.
 
-If a command prints an error, note it and carry on; GlassOS still runs.
+If a command prints an error, note it and carry on; GlassOS still runs. On a TV with no device admin at all (the
+Nvidia Shield), `dpm set-active-admin` prints Success but changes nothing; GlassOS then does not offer Sleep.
 
 Platform-specific:
 
@@ -169,6 +170,9 @@ adb shell pm disable-user --user 0 com.google.android.tvlauncher
 # undo
 adb shell pm enable com.google.android.tvlauncher
 ```
+
+The Nvidia Shield turns its stock launcher back on at every restart; tell the person, so they know Home goes back
+to the stock home after a restart unless they run the command again.
 
 Launch it:
 
