@@ -29,7 +29,8 @@ on the Android TV emulator.
   have installed (Netflix, Prime Video, Disney+, Apple TV+, Max and others) come first, for the country you
   choose. OK on a title opens its app.
 - **Glass shelf**: up to six favourite apps on a frosted glass shelf, with the first row of the app drawer peeking
-  in below it. Long press OK on any app to add it to the top row or remove it; Settings > Edit top row moves them.
+  in below it. Hold OK on any app to move it across the shelf and the drawer, like Apple TV; Menu while it moves
+  adds it to the top row or removes it, or hides it.
 - **App drawer**: every installed app, with labels, a scroll below the shelf.
 - **Adaptive profile pill**: the time and your avatar in the top right, with a tint that adapts to the art behind it,
   and a small shield while a VPN is connected.
@@ -243,9 +244,13 @@ also be typed in Settings > TMDB API key.
   the default home (Home and boot), the watcher fallback when the stock launcher keeps Home, and the Control Center
   Settings buttons.
 - Fire TV Stick 4K (Fire OS 6, API 25): the private build this release comes from, daily use.
+- Nvidia Shield TV 2019 (Android 11, API 30), from a user's report
+  ([#31](https://github.com/AbhishekKaisar/glassos-tv/issues/31)): setup, the Top Shelf, the shelf and the drawer
+  work. It has no device admin, so Sleep is not offered, and Home opens GlassOS only with the stock launcher turned
+  off, which the Shield turns back on at every restart.
 
-Not yet tried on real Android TV or Google TV hardware (Nvidia Shield, Chromecast with Google TV, Xiaomi Mi Box,
-Onn) or on Fire OS 7 and 8. Reports are welcome.
+Not yet tried on Chromecast with Google TV, Google TV Streamer, Xiaomi Mi Box or Onn, or on Fire OS 7 and 8. Reports
+are welcome.
 
 ## Uninstall and restore the stock home
 
