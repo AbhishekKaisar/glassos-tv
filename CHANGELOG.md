@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Control Center looks like tvOS's: the time and date head the panel, with the tabs beside them as round icons
+  (Profile, Controls, and Now Playing and VPN while active) and the shown tab lit. The tab name above the buttons is
+  gone, and nine buttons make a three by three grid instead of two full rows and one button on its own.
+- Control Center pages (Sleep Timer, Inputs, Switch Profile) are lists, as in tvOS: long input names fit, the Turn Off
+  row shows the time left, and a list longer than half the screen scrolls.
+- Control Center's Profile tab has a Name and Photo row that opens GlassOS settings, so it is not empty on TVs
+  without profiles.
+- Now Playing shows the progress with the elapsed and remaining time, and Down from its tab lands on Play/Pause. When
+  the track changes while Control Center is open it shows the new title and art (it kept the old ones), and the
+  buttons control the session shown even if another app took over.
 - Fire TV: after Home, the focus sound and a tile's focus animation no longer repeat on their own every few seconds,
   and the first top row app no longer stays enlarged for a moment. Package broadcasts that change nothing shown now
   refresh the tiles in place instead of rebuilding them (and no longer cancel an app being moved), and only a key
@@ -45,6 +55,27 @@
   a solid base instead of the blurred art, and the drawer a solid ground. Off by default (#10).
 - Custom app icons: an image in Pictures/Glass/icons named after an app (or its package) replaces that app's tile
   art, as a banner when wide or as an icon when square. Changes there show on coming back to Home (#32).
+- Sleep timer: a timer set before the TV restarted no longer keeps counting down in Control Center. The restart had
+  dropped its alarm, so it would never have put the TV to sleep.
+- One-tap permissions: when the TV's ADB stops answering before any prompt, setup no longer says "No answer from the
+  TV's prompt"; it treats it as the TV closing its ADB (on Fire TV, the computer steps) and does not wait twice.
+- Setup: reaching the top row step before the app list has loaded no longer freezes the panel while every app's art
+  is rendered; the step says it is loading and fills in when the list is ready.
+- Top Shelf: a TV whose language has a region number instead of a country (Spanish for Latin America, es-419) no
+  longer sends that number to TMDB, which lost the titles on your services; it uses US until a country is chosen in
+  Settings, which shows it.
+- Custom icons: the check for changes in Pictures/Glass/icons runs in the background, no longer on the main thread
+  at every Home press while GlassOS takes over from the overlay.
+- Custom icons: an image named after a package now always beats one named after a label; a label shared by two apps
+  matches neither, so they no longer get the same icon; and of two files whose names match the same, the first by
+  name is used every time.
+- Control Center: Do Not Disturb without notification access now says where to grant it, instead of "(see handoff)",
+  a note left over from development.
+- Now Playing shows the app that is playing when another app has a paused session listed before it.
+- After Home with Control Center open in the overlay, the overlay's Control Center no longer keeps a once-a-second
+  timer and a media callback running for good, which kept the whole removed overlay in memory.
+- Without a profile photo, the profile pill draws its glass avatar from a bitmap made once, instead of building two
+  gradients on every frame of the Top Shelf.
 
 ## 1.0.2-beta (2026-10-23)
 

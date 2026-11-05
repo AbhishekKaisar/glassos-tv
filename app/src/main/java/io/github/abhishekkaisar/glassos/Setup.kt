@@ -375,12 +375,12 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
         target?.requestFocus()
     }
 
-    private fun suggestedCountry(): String = Locale.getDefault().country.ifEmpty { "US" }
+    private fun suggestedCountry(): String = Prefs.tvCountry()
 
     private fun appsStep() {
         title.text = "Your top row"
         subtitle.text = "Choose up to ${HomeScreen.COLS} apps for the shelf. You can change them later."
-        val apps = allApps().filter { it.pkg !in hidden }
+        val apps = (allApps() ?: return appsLoading()).filter { it.pkg !in hidden }
         if (picked.isEmpty()) picked.addAll(AppRepo.defaultDock(apps))
         picked.retainAll(apps.map { it.pkg }.toSet())
         fun refreshCount() { subtitle.text = "Choose up to ${HomeScreen.COLS} apps for the shelf (${picked.size} chosen). You can change them later." }
@@ -399,7 +399,7 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
     /** Settings > Hidden apps: ticked apps stay off the drawer, the top row and the top row picker. */
     private fun hiddenStep() {
         title.text = "Hidden apps"
-        val apps = allApps()
+        val apps = allApps() ?: return appsLoading()
         fun refreshCount() {
             subtitle.text = if (hidden.isEmpty()) "Choose apps to hide from Home. They still open from the Top Shelf."
                 else "${hidden.size} hidden. Choose an app again to show it on Home."
@@ -420,7 +420,28 @@ class SetupView(private val home: HomeScreen) : FrameLayout(home.ctx) {
         tiles.firstOrNull()?.requestFocus()
     }
 
-    private fun allApps(): List<AppEntry> = HomeShare.apps ?: AppRepo.load(context).also { HomeShare.apps = it }
+    /** Set while a step waits for the app list. */
+    private var waitingForApps = false
+
+    /**
+     * The installed apps, or null while they are still loading: rendering every banner takes seconds on a slow stick,
+     * so the home loads them off the UI thread and the step shows again once they are in.
+     */
+    private fun allApps(): List<AppEntry>? {
+        HomeShare.apps?.let { return it }
+        val s = step
+        if (!waitingForApps) {
+            waitingForApps = true
+            home.whenAppsLoaded { waitingForApps = false; if (isOpen && step == s) show(s) }
+        }
+        return null
+    }
+
+    /** A step whose apps are not loaded yet: it says so, and comes back by itself once they are. */
+    private fun appsLoading() {
+        subtitle.text = "Loading your apps…"
+        navButton(if (single) "Close" else "Back") { back() }.requestFocus()
+    }
 
     /** A scrolling grid of app thumbnails, five a row; [chosen] marks a tile, [click] runs on OK. */
     private fun appGrid(apps: List<AppEntry>, chosen: (String) -> Boolean, click: (AppEntry, ThumbView) -> Unit): List<ThumbView> {

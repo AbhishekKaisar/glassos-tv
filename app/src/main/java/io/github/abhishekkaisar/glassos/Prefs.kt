@@ -39,9 +39,9 @@ class Prefs(ctx: Context) {
         get() = sp.getString("country", "") ?: ""
         set(v) { sp.edit().putString("country", v).apply() }
 
-    /** The region in use: [country], or the TV's own until one is chosen (setup does not ask), else US. */
+    /** The region in use: [country], or the TV's own until one is chosen (setup does not ask). */
     val effectiveCountry: String
-        get() = country.ifEmpty { java.util.Locale.getDefault().country }.ifEmpty { "US" }.uppercase()
+        get() = country.ifEmpty { tvCountry() }.uppercase()
 
     var replaceHome: Boolean
         get() = sp.getBoolean("replaceHome", true)
@@ -80,5 +80,12 @@ class Prefs(ctx: Context) {
 
     companion object {
         const val DEFAULT_SCENE = "scene:desert"
+
+        /**
+         * The TV's country from its locale, else US. Only a two-letter code is a country: a locale such as es-419
+         * (Latin America) gives a UN region number, which TMDB's watch regions do not accept.
+         */
+        fun tvCountry(): String = java.util.Locale.getDefault().country
+            .takeIf { it.length == 2 && it.all { c -> c.isLetter() } }?.uppercase() ?: "US"
     }
 }

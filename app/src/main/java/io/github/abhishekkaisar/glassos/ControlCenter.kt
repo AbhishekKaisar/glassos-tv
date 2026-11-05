@@ -12,8 +12,12 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.TextPaint
 import android.text.TextUtils
 import android.view.Gravity
@@ -23,8 +27,10 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.util.Locale
 
 /** Line glyphs for Control Center, drawn in a box of side s centred on (cx, cy). No vector assets. */
 enum class Glyph { NONE, POWER, WIFI, MOON, SPEAKER, TIMER, GAMEPAD, ACCESS, LOCK, GEAR, PEOPLE, PLAY, PAUSE, PREV, NEXT, SHIELD, TOGGLES, NOTE, CHECK, CLOSE, OPEN, INPUT }
@@ -230,8 +236,11 @@ object Glyphs {
  * it. Focused it turns white with a dark glyph; [on] (an active toggle) shows a lighter fill. [text] replaces
  * the glyph (the sleep timer's countdown), [image] fills the circle (the avatar).
  */
-class CcButton(ctx: Context, private val size: Int, private val cellW: Int, glyph: Glyph, label: String,
+class CcButton(ctx: Context, private val size: Int, cellW: Int, glyph: Glyph, label: String,
                private val square: Boolean = false, private val labelH: Int = ctx.dpi(30f)) : View(ctx) {
+    /** The width it takes in its row: the grid sets it once it knows how many columns it has. */
+    var cellW = cellW
+        set(v) { if (field != v) { field = v; requestLayout() } }
     var glyph = glyph
         set(v) { if (field != v) { field = v; invalidate() } }
     var label = label
@@ -310,7 +319,7 @@ class CcButton(ctx: Context, private val size: Int, private val cellW: Int, glyp
                 gl.style = Paint.Style.FILL
             }
         } else {
-            val rest = if (on) 0.78f else if (current) 0.26f else 0.14f
+            val rest = if (on) 0.78f else if (current) 0.4f else 0.14f
             fill.color = alphaOf(Color.WHITE, rest + (0.97f - rest) * f)
             c.drawRoundRect(rect, rad, rad, fill)
             if (f < 0.99f && !on) {
@@ -338,15 +347,14 @@ class CcButton(ctx: Context, private val size: Int, private val cellW: Int, glyp
 }
 
 /**
- * tvOS 26 style Control Center: a Liquid Glass panel that grows out of the profile pill, with a row of round tab
- * icons (Profile, General, and Now Playing and VPN while active) over the tab's buttons. Opened with OK on the
- * pill or Menu anywhere on the home; Back closes it and focus returns where it was. The hero is paused while it
- * is open, so the screen only redraws when focus moves.
+ * tvOS style Control Center: a Liquid Glass panel that grows out of the profile pill. The time and date head it,
+ * with the tabs beside them as round icons (Profile, Controls, and Now Playing and VPN while active); the shown tab
+ * fills the rest. Opened with OK on the pill or Menu anywhere on the home. Back leaves a page (Sleep Timer, Inputs,
+ * Switch Profile), then closes, and focus returns where it was. The hero is paused while it is open, so the screen
+ * only redraws when focus moves.
  */
 class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
-    enum class Tab(val title: String, val glyph: Glyph) {
-        PROFILE("Profile", Glyph.NONE), GENERAL("General", Glyph.TOGGLES), NOW_PLAYING("Now Playing", Glyph.NOTE), VPN("VPN", Glyph.SHIELD)
-    }
+    enum class Tab(val glyph: Glyph) { PROFILE(Glyph.NONE), CONTROLS(Glyph.TOGGLES), NOW_PLAYING(Glyph.NOTE), VPN(Glyph.SHIELD) }
 
     var isOpen = false
         private set
@@ -356,7 +364,10 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
 
     private val ui = Handler(Looper.getMainLooper())
     private val dim = View(context).apply { setBackgroundColor(0x47000000) }
-    private val panelW = dpi(372f)
+    private val margin = Backdrop.screenW * 48 / 1920
+    /** Narrower only on a screen too small for it. */
+    private val panelW = minOf(dpi(392f), Backdrop.screenW - 2 * margin)
+    private val pad = dpi(22f)
     val panel = object : GlassBox(context, dp(30f)) {
         override fun onDraw(c: Canvas) {
             // The pill's adaptive tint, a little denser: the panel holds text and many buttons.
@@ -373,29 +384,47 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         shadowAlpha = 0.45f
     }
     private val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
+    private val clock = TextView(context).apply {
+        textSize = 30f; typeface = Fonts.medium; setTextColor(Color.WHITE); includeFontPadding = false; maxLines = 1
+    }
+    private val date = TextView(context).apply {
+        textSize = 13f; typeface = Fonts.regular; setTextColor(0xB3FFFFFF.toInt()); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+    }
+    private val datePattern = android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), "EEEEdMMMM")
     private val tabRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false; gravity = Gravity.CENTER_VERTICAL }
-    private val title = TextView(context).apply {
-        textSize = 15f; typeface = Fonts.medium; setTextColor(0xB3FFFFFF.toInt())
+    /** A page's name (Sleep Timer, Inputs, Switch Profile). Tabs have none: their icon is lit instead. */
+    private val pageTitle = TextView(context).apply {
+        textSize = 15f; typeface = Fonts.medium; setTextColor(0xB3FFFFFF.toInt()); visibility = View.GONE
     }
     private val body = FrameLayout(context).apply { clipChildren = false; clipToPadding = false }
 
     private val tabButtons = LinkedHashMap<Tab, CcButton>()
-    private var tab = Tab.GENERAL
+    private var tab = Tab.CONTROLS
+    /** The body's top line: Up from it goes to the shown tab's icon. */
+    private var topRow: List<View> = emptyList()
+    /** Where Down from the tabs lands, when not the body's first button (Play/Pause on Now Playing). */
+    private var entry: View? = null
     private var timerButton: CcButton? = null
+    private var timerOff: RowView? = null
     private var dndButton: CcButton? = null
-    private var playButton: CcButton? = null
-    /** A sub-view (timer choices, profile confirm) is shown; Back returns to the tab's buttons. */
+    private var playing: PlayingViews? = null
+    /** A page is shown; Back runs this to return to the tab it came from. */
     private var subView: (() -> Unit)? = null
-    private var playing: NowPlaying? = null
-    private val sessionCb = object : android.media.session.MediaController.Callback() {
-        override fun onPlaybackStateChanged(state: android.media.session.PlaybackState?) { ui.post { refreshPlaying() } }
-        override fun onMetadataChanged(metadata: android.media.MediaMetadata?) { ui.post { refreshPlaying() } }
+    private val silhouette by lazy { Profile.silhouette(dpi(64f)) }
+    private val sessionCb = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) { ui.post { refreshPlaying(false) } }
+        override fun onMetadataChanged(metadata: MediaMetadata?) { ui.post { refreshPlaying(false) } }
+        override fun onSessionDestroyed() { ui.post { refreshPlaying(true) } }
     }
 
     private val tick = object : Runnable {
         override fun run() {
             if (!isOpen) return
-            timerButton?.let { b -> b.text = SleepTimer.remaining(context); b.on = b.text != null }
+            updateClock()
+            val left = SleepTimer.remaining(context)
+            timerButton?.let { b -> b.text = left; b.on = left != null }
+            timerOff?.valueView?.let { v -> v.update(left?.let { "$it left" } ?: "") }
+            updateProgress()
             ui.postDelayed(this, 1000)
         }
     }
@@ -404,14 +433,19 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         visibility = View.GONE
         clipChildren = false
         addView(dim, LayoutParams(-1, -1))
-        val pad = dpi(22f)
-        column.setPadding(pad, dpi(18f), pad, dpi(14f))
+        column.setPadding(pad, dpi(18f), pad, dpi(20f))
         panel.addView(column, LayoutParams(-1, -2))
-        column.addView(tabRow, LinearLayout.LayoutParams(-1, -2))
-        column.addView(title, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(10f); leftMargin = dpi(4f) })
-        column.addView(body, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(10f) })
+        val header = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; clipChildren = false; clipToPadding = false }
+        val time = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        time.addView(clock, LinearLayout.LayoutParams(-2, -2))
+        time.addView(date, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(3f) })
+        header.addView(time, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dpi(4f) })
+        header.addView(tabRow, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dpi(12f) })
+        column.addView(header, LinearLayout.LayoutParams(-1, -2))
+        column.addView(pageTitle, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(16f); leftMargin = dpi(4f) })
+        column.addView(body, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(16f) })
         addView(panel, LayoutParams(panelW, -2, Gravity.TOP or Gravity.END).apply {
-            rightMargin = Backdrop.screenW * 48 / 1920; topMargin = Backdrop.screenH * 36 / 1080
+            rightMargin = margin; topMargin = Backdrop.screenH * 36 / 1080
         })
     }
 
@@ -421,10 +455,11 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         if (isOpen) return
         isOpen = true
         returnFocus = from
+        updateClock()
         buildTabs()
-        showTab(Tab.GENERAL)
+        showTab(Tab.CONTROLS)
         visibility = View.VISIBLE
-        firstButton()?.requestFocus()
+        firstFocusable()?.requestFocus()
         ui.removeCallbacks(tick); ui.post(tick)
         panel.pivotX = panelW.toFloat()
         panel.pivotY = 0f
@@ -452,6 +487,7 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         val done = {
             visibility = View.GONE
             body.removeAllViews()
+            playing = null; timerButton = null; timerOff = null; dndButton = null
             home.onControlCenterClosed(returnFocus)
             returnFocus = null
             after?.invoke()
@@ -465,10 +501,29 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
             .start()
     }
 
-    /** Back: leaves a sub-view first, then closes. */
+    /**
+     * Its home is going away, possibly with the panel open (the overlay hands over to MainActivity that way): stops
+     * the once-a-second countdown, which would otherwise repost itself for good and keep the home alive, and the
+     * media session callback.
+     */
+    fun release() {
+        isOpen = false
+        subView = null
+        ui.removeCallbacksAndMessages(null)
+        unwatchSession()
+    }
+
+    /** Back: leaves a page first, then closes. */
     fun back() {
         val s = subView
         if (s != null) { subView = null; s() } else close()
+    }
+
+    private fun updateClock() {
+        val now = System.currentTimeMillis()
+        val fmt = if (android.text.format.DateFormat.is24HourFormat(context)) "H:mm" else "h:mm"
+        clock.update(android.text.format.DateFormat.format(fmt, now).toString())
+        date.update(android.text.format.DateFormat.format(datePattern, now).toString())
     }
 
     // ---------- Tabs ----------
@@ -476,22 +531,24 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
     private fun buildTabs() {
         tabRow.removeAllViews()
         tabButtons.clear()
-        playing = NowPlaying.current(context)
         val tabs = ArrayList<Tab>()
         tabs.add(Tab.PROFILE)
-        tabs.add(Tab.GENERAL)
-        if (playing != null) tabs.add(Tab.NOW_PLAYING)
+        tabs.add(Tab.CONTROLS)
+        if (NowPlaying.current(context) != null) tabs.add(Tab.NOW_PLAYING)
         if (Net.vpnActive(context)) tabs.add(Tab.VPN)
-        val sz = dpi(34f)
+        val sz = dpi(36f)
         for ((i, t) in tabs.withIndex()) {
-            val b = CcButton(context, sz, sz + dpi(8f), t.glyph, "", labelH = 0)
+            val b = CcButton(context, sz, sz, t.glyph, "", labelH = 0)
             b.id = View.generateViewId()
-            if (t == Tab.PROFILE) b.image = HomeShare.avatar ?: Profile.silhouette(dpi(64f))
+            if (t == Tab.PROFILE) b.image = HomeShare.avatar ?: silhouette
             b.onFocus = { if (!rebuilding && (tab != t || subView != null)) showTab(t) }
-            b.onClick = { firstButton()?.requestFocus() }
-            tabRow.addView(b, LinearLayout.LayoutParams(-2, -2).apply { if (i > 0) leftMargin = dpi(6f) })
+            b.onClick = { (entry ?: firstFocusable())?.requestFocus() }
+            tabRow.addView(b, LinearLayout.LayoutParams(-2, -2).apply { if (i > 0) leftMargin = dpi(8f) })
             tabButtons[t] = b
         }
+        // The body is below and to the left of the icons: Left and Right stay on them.
+        tabButtons.values.first().let { it.nextFocusLeftId = it.id }
+        tabButtons.values.last().let { it.nextFocusRightId = it.id }
     }
 
     /**
@@ -508,15 +565,11 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
 
     private fun showTab(t: Tab) = rebuild {
         tab = t
-        subView = null
         tabButtons.forEach { (k, b) -> b.current = k == t }
-        title.text = t.title
-        body.removeAllViews()
-        timerButton = null; dndButton = null; playButton = null
-        if (t != Tab.NOW_PLAYING) unwatchSession()
+        clearBody(null)
         when (t) {
             Tab.PROFILE -> buildProfile()
-            Tab.GENERAL -> buildGeneral()
+            Tab.CONTROLS -> buildControls()
             Tab.NOW_PLAYING -> buildNowPlaying()
             Tab.VPN -> buildVpn()
         }
@@ -524,78 +577,156 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         invalidateDeep(panel)
     }
 
-    /** Up from the buttons' top row goes to the shown tab; Down from any tab goes to the first button. */
-    private fun linkUp() {
-        val tabId = tabButtons[tab]?.id ?: View.NO_ID
-        val first = firstButton()
-        tabButtons.values.forEach { it.nextFocusDownId = first?.id ?: View.NO_ID }
-        (gridTop ?: buttons(body)).forEach { it.nextFocusUpId = tabId }
-        gridTop = null
+    /** Empties the body for a tab ([title] null) or a page. */
+    private fun clearBody(title: String?) {
+        subView = null
+        pageTitle.text = title ?: ""
+        pageTitle.visibility = if (title == null) View.GONE else View.VISIBLE
+        body.removeAllViews()
+        topRow = emptyList()
+        entry = null
+        timerButton = null; timerOff = null; dndButton = null; playing = null
+        unwatchSession()
     }
 
-    /** The first row of the last [grid] built (views are not laid out yet, so rows come from the structure). */
-    private var gridTop: List<CcButton>? = null
+    /** A page's content is in: Back runs [back], focus goes to its first button. */
+    private fun showPage(back: () -> Unit) {
+        subView = back
+        linkUp()
+        firstFocusable()?.requestFocus()
+        invalidateDeep(panel)
+    }
 
-    private fun buttons(v: View): List<CcButton> = when (v) {
-        is CcButton -> listOf(v)
-        is ViewGroup -> (0 until v.childCount).flatMap { buttons(v.getChildAt(it)) }
+    /** Up from the body's top line goes to the shown tab; Down from any tab goes to the body's first button. */
+    private fun linkUp() {
+        val tabId = tabButtons[tab]?.id ?: View.NO_ID
+        val first = entry ?: firstFocusable()
+        tabButtons.values.forEach { it.nextFocusDownId = first?.id ?: View.NO_ID }
+        topRow.forEach { it.nextFocusUpId = tabId }
+    }
+
+    private fun focusables(v: View): List<View> = when {
+        v.visibility != View.VISIBLE -> emptyList()
+        v is RowView -> if (v.isFocusable) listOf(v) else emptyList()
+        v is ViewGroup -> (0 until v.childCount).flatMap { focusables(v.getChildAt(it)) }
+        v.isFocusable -> listOf(v)
         else -> emptyList()
     }
 
-    private fun firstButton(): CcButton? = buttons(body).firstOrNull()
+    private fun firstFocusable(): View? = focusables(body).firstOrNull()
 
-    // ---------- Grids ----------
+    /** Focus back on the Controls button a page was opened from. */
+    private fun refocus(label: String) {
+        focusables(body).firstOrNull { (it as? CcButton)?.label == label }?.requestFocus()
+    }
 
-    private val btn get() = dpi(46f)
-    private val cell get() = (panelW - dpi(44f)) / 4
+    // ---------- Building blocks ----------
 
-    private fun grid(items: List<CcButton>, cols: Int = 4): LinearLayout {
+    private val btn get() = dpi(52f)
+
+    /**
+     * Four columns, or three when that leaves fewer gaps in the last row: nine buttons make a square rather than
+     * two full rows and one button on its own.
+     */
+    private fun grid(items: List<CcButton>): LinearLayout {
+        val cols = if ((3 - items.size % 3) % 3 < (4 - items.size % 4) % 4) 3 else 4
+        val cellW = (panelW - 2 * pad) / cols
+        items.forEach { it.cellW = cellW }
         val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
-        gridTop = items.take(cols)
+        topRow = items.take(cols)
         items.chunked(cols).forEachIndexed { r, row ->
             val line = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
             row.forEach { line.addView(it, LinearLayout.LayoutParams(-2, -2)) }
-            col.addView(line, LinearLayout.LayoutParams(-2, -2).apply { if (r > 0) topMargin = dpi(8f) })
+            col.addView(line, LinearLayout.LayoutParams(-2, -2).apply { if (r > 0) topMargin = dpi(6f) })
         }
         return col
     }
 
-    private fun button(g: Glyph, label: String, click: () -> Unit) = CcButton(context, btn, cell, g, label).apply {
+    /** A round Controls button with its label under it. */
+    private fun circle(g: Glyph, label: String, click: () -> Unit) = CcButton(context, btn, (panelW - 2 * pad) / 4, g, label, labelH = dpi(28f)).apply {
         id = View.generateViewId(); onClick = click
     }
+
+    /** A list row, as in a tvOS menu: pages and the Profile and VPN tabs use these. */
+    private fun row(title: String, value: String = "", click: () -> Unit) = RowView(context, title).apply {
+        id = View.generateViewId()
+        titleView.textSize = 17f
+        titleView.maxLines = 1
+        titleView.ellipsize = TextUtils.TruncateAt.END
+        valueView.textSize = 15f
+        valueView.text = value
+        onClick = click
+    }
+
+    /** [rows] one under another, scrolling when the screen is too short for them all. */
+    private fun list(rows: List<View>): View {
+        val rowH = dpi(46f)
+        val gap = dpi(6f)
+        val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
+        rows.forEachIndexed { i, r -> col.addView(r, LinearLayout.LayoutParams(-1, rowH).apply { if (i > 0) topMargin = gap }) }
+        topRow = rows.take(1)
+        val maxH = Backdrop.screenH / 2
+        if (rows.size * (rowH + gap) <= maxH) return col
+        // Inset so a focused row's lift is not cut off by the scroll's edges.
+        col.setPadding(dpi(6f), dpi(4f), dpi(6f), dpi(4f))
+        return object : ScrollView(context) {
+            override fun onMeasure(w: Int, h: Int) = super.onMeasure(w, MeasureSpec.makeMeasureSpec(maxH, MeasureSpec.AT_MOST))
+        }.apply {
+            isFocusable = false
+            isVerticalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(col, ViewGroup.LayoutParams(-1, -2))
+        }
+    }
+
+    private fun note(text: String) = TextView(context).apply {
+        this.text = text; textSize = 15f; typeface = Fonts.regular; setTextColor(0xCCFFFFFF.toInt())
+    }
+
+    private fun appLabel(pkg: String): String? = try {
+        context.packageManager.let { it.getApplicationLabel(it.getApplicationInfo(pkg, 0)).toString() }
+    } catch (e: Throwable) { null }
 
     private fun open(i: Intent, pkg: String, hint: String? = null) {
         close(instant = true) { home.startIntent(i, pkg, hint) }
     }
 
-    private fun buildGeneral() {
+    /** A standard Settings page (Android TV and Google TV). */
+    private fun openStd(action: String) {
+        val i = Intent(action)
+        open(i, Platform.handler(context, i))
+    }
+
+    // ---------- Controls ----------
+
+    private fun buildControls() {
         val ctx = context
         val fireTv = Platform.isFireTv(ctx)
         // Without device admin at all (the Nvidia Shield) an Android TV app cannot sleep the TV; Fire TV still opens
         // its own sleep menu.
         val canSleep = fireTv || Power.supported(ctx)
-        val power = if (!canSleep) null else button(Glyph.POWER, "Sleep") { close(instant = true) { Power.sleep(ctx) } }
-        val wifi = button(Glyph.WIFI, Net.networkName(ctx)) {
+        val power = if (!canSleep) null else circle(Glyph.POWER, "Sleep") { close(instant = true) { Power.sleep(ctx) } }
+        val wifi = circle(Glyph.WIFI, Net.networkName(ctx)) {
             if (fireTv) open(FireIntents.wifi(), FireIntents.SETTINGS_PKG) else openStd(android.provider.Settings.ACTION_WIFI_SETTINGS)
         }
-        val dnd = button(Glyph.MOON, "Do Not Disturb") { toggleDnd() }.apply { on = Dnd.isOn(ctx) }
+        val dnd = circle(Glyph.MOON, "Do Not Disturb") { toggleDnd() }.apply { on = Dnd.isOn(ctx) }
         dndButton = dnd
-        val audio = button(Glyph.SPEAKER, "Audio") {
+        val audio = circle(Glyph.SPEAKER, "Audio") {
             if (fireTv) open(FireIntents.audio(), FireIntents.SETTINGS_PKG, "Choose Display & Audio") else openStd(android.provider.Settings.ACTION_SOUND_SETTINGS)
         }
         // HDMI and other inputs, only on TVs that have them (Fire TV Edition TVs, the Cube): one opens at once.
         val inputs = TvInputs.list(ctx)
-        val input = if (inputs.isEmpty()) null else button(Glyph.INPUT, "Inputs") {
+        val input = if (inputs.isEmpty()) null else circle(Glyph.INPUT, "Inputs") {
             val only = inputs.singleOrNull()
             if (only != null) open(only.intent, Platform.handler(ctx, only.intent)) else showInputs(inputs)
         }
-        val timer = if (!canSleep) null else button(Glyph.TIMER, "Sleep Timer") { showTimerChoices() }.apply {
+        val timer = if (!canSleep) null else circle(Glyph.TIMER, "Sleep Timer") { showTimerChoices() }.apply {
             text = SleepTimer.remaining(ctx); on = text != null
         }
         timerButton = timer
         // Android TV: Bluetooth settings or the "pair remote or accessory" page where GlassOS may open them, else
         // Settings, where Remotes & Accessories is.
-        val pads = button(Glyph.GAMEPAD, "Controllers") {
+        val pads = circle(Glyph.GAMEPAD, "Controllers") {
             val i = if (fireTv) null else Platform.openable(ctx, CONTROLLER_ACTIONS)
             when {
                 fireTv -> open(FireIntents.controllers(), FireIntents.SETTINGS_PKG)
@@ -606,46 +737,22 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
                 }
             }
         }
-        val acc = button(Glyph.ACCESS, "Accessibility") {
+        val acc = circle(Glyph.ACCESS, "Accessibility") {
             if (fireTv) open(FireIntents.accessibility(), FireIntents.SETTINGS_PKG, "Choose Accessibility") else openStd(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
         }
         // Stock Android TV has no parental controls page of its own.
         val pc = if (!fireTv) null
-            else button(Glyph.LOCK, "Parental") { open(FireIntents.parental(), "com.amazon.tv.parentalcontrols", "Choose Preferences, then Parental Controls") }
-        val fire = button(Glyph.OPEN, "TV Settings") { close(instant = true) { home.openFireSettings() } }
-        val gear = button(Glyph.GEAR, "GlassOS") { close(instant = true) { home.openSettings() } }
+            else circle(Glyph.LOCK, "Parental") { open(FireIntents.parental(), "com.amazon.tv.parentalcontrols", "Choose Preferences, then Parental Controls") }
+        val fire = circle(Glyph.OPEN, "TV Settings") { close(instant = true) { home.openFireSettings() } }
+        val gear = circle(Glyph.GEAR, "GlassOS") { close(instant = true) { home.openSettings() } }
         body.addView(grid(listOfNotNull(power, wifi, dnd, audio, input, timer, pads, acc, pc, fire, gear)))
-    }
-
-    /** The TV's inputs, by name; OK opens one in the TV's player, Back returns to General. */
-    private fun showInputs(inputs: List<TvInputs.Input>) = rebuild {
-        body.removeAllViews()
-        title.text = "Inputs"
-        val ctx = context
-        val items = inputs.map { inp ->
-            CcButton(ctx, btn, cell, Glyph.INPUT, inp.label).apply {
-                id = View.generateViewId()
-                onClick = { open(inp.intent, Platform.handler(ctx, inp.intent)) }
-            }
-        }
-        body.addView(grid(items))
-        linkUp()
-        subView = { showTab(Tab.GENERAL) }
-        firstButton()?.requestFocus()
-        invalidateDeep(panel)
-    }
-
-    /** A standard Settings page (Android TV and Google TV). */
-    private fun openStd(action: String) {
-        val i = Intent(action)
-        open(i, Platform.handler(context, i))
     }
 
     private fun toggleDnd() {
         val b = dndButton ?: return
         val want = !Dnd.isOn(context)
         if (!Dnd.set(context, want)) {
-            Toast.makeText(context, "Needs notification access (see handoff)", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Do Not Disturb needs notification access (GlassOS Settings > Permissions)", Toast.LENGTH_LONG).show()
             return
         }
         b.on = want
@@ -653,72 +760,76 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
         ui.postDelayed({ if (isOpen) dndButton?.on = Dnd.isOn(context) }, 400)
     }
 
-    private fun showTimerChoices() = rebuild {
-        body.removeAllViews()
-        title.text = "Sleep Timer"
+    /** The TV's inputs, by name; OK opens one in the TV's player, Back returns to Controls. */
+    private fun showInputs(inputs: List<TvInputs.Input>) = rebuild {
+        clearBody("Inputs")
         val ctx = context
-        val running = SleepTimer.endsAt(ctx) != 0L
-        val items = ArrayList<CcButton>()
-        for (m in listOf(15, 30, 60, 90)) {
-            items.add(CcButton(ctx, btn, cell, Glyph.NONE, "$m minutes").apply {
-                id = View.generateViewId()
-                text = "$m"
-                onClick = { SleepTimer.start(ctx, m * 60_000L); showTab(Tab.GENERAL); timerButton?.requestFocus() }
-            })
-        }
-        if (running) items.add(CcButton(ctx, btn, cell, Glyph.CLOSE, "Turn Off").apply {
-            id = View.generateViewId()
-            onClick = { SleepTimer.cancel(ctx); showTab(Tab.GENERAL); timerButton?.requestFocus() }
-        })
-        body.addView(grid(items))
-        linkUp()
-        subView = { showTab(Tab.GENERAL); timerButton?.requestFocus() }
-        firstButton()?.requestFocus()
-        invalidateDeep(panel)
+        body.addView(list(inputs.map { inp -> row(inp.label) { open(inp.intent, Platform.handler(ctx, inp.intent)) } }), LayoutParams(-1, -2))
+        showPage { showTab(Tab.CONTROLS); refocus("Inputs") }
     }
+
+    private fun showTimerChoices() = rebuild {
+        clearBody("Sleep Timer")
+        val ctx = context
+        val back = { showTab(Tab.CONTROLS); refocus("Sleep Timer") }
+        val rows = ArrayList<View>()
+        for (m in listOf(15, 30, 60, 90)) {
+            rows.add(row(if (m == 60) "1 hour" else "$m minutes") { SleepTimer.start(ctx, m * 60_000L); back() })
+        }
+        val left = SleepTimer.remaining(ctx)
+        if (left != null) rows.add(row("Turn Off", "$left left") { SleepTimer.cancel(ctx); back() }.also { timerOff = it })
+        body.addView(list(rows), LayoutParams(-1, -2))
+        showPage(back)
+    }
+
+    // ---------- Profile ----------
 
     private fun buildProfile() {
         val ctx = context
-        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; clipChildren = false; clipToPadding = false }
-        val av = AvatarView(ctx, dpi(84f), home.prefs.name)
-        box.addView(av, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(4f) })
-        box.addView(TextView(ctx).apply {
-            text = home.prefs.name.ifEmpty { "Profile" }; textSize = 24f; typeface = Fonts.medium; setTextColor(Color.WHITE); gravity = Gravity.CENTER
-        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(10f) })
-        // Fire TV profiles, or the account and profile settings on Google TV; hidden when this TV has neither.
-        if (Platform.isFireTv(ctx) || Platform.accountsIntent(ctx) != null) {
-            val sw = button(Glyph.PEOPLE, "Switch Profile") { confirmSwitch() }
-            box.addView(sw, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(14f) })
-        }
-        body.addView(box, LayoutParams(-1, -2))
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
+        val who = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val av = dpi(56f)
+        who.addView(AvatarView(ctx, av, HomeShare.avatar ?: silhouette), LinearLayout.LayoutParams(av, av))
+        who.addView(TextView(ctx).apply {
+            text = home.prefs.name.ifEmpty { "Profile" }; textSize = 22f; typeface = Fonts.medium; setTextColor(Color.WHITE)
+            maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+        }, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dpi(14f) })
+        col.addView(who, LinearLayout.LayoutParams(-1, -2).apply { leftMargin = dpi(4f) })
+        val rows = ArrayList<View>()
+        // Fire TV profiles, or the account and profile settings on Google TV, where the TV has them.
+        if (Platform.isFireTv(ctx) || Platform.accountsIntent(ctx) != null) rows.add(row("Switch Profile") { confirmSwitch() })
+        rows.add(row("Name and Photo") { close(instant = true) { home.openSettings() } })
+        col.addView(list(rows), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(16f) })
+        body.addView(col, LayoutParams(-1, -2))
     }
 
     /** Never leaves for Fire TV profiles without a second, explicit choice (Cancel is focused). The picker itself needs an Amazon signature, so this opens Settings, where the user picks Profiles. */
     private fun confirmSwitch() = rebuild {
+        clearBody("Switch Profile")
         val ctx = context
-        body.removeAllViews()
-        title.text = "Switch Profile"
-        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; clipChildren = false; clipToPadding = false }
-        box.addView(TextView(ctx).apply {
-            text = if (Platform.isFireTv(ctx)) "Open Fire TV Profiles?" else "Open ${Platform.name(ctx)} accounts and profiles?"; textSize = 17f; typeface = Fonts.regular; setTextColor(0xE6FFFFFF.toInt()); gravity = Gravity.CENTER
-        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(6f) })
-        val cancel = button(Glyph.CLOSE, "Cancel") { showTab(Tab.PROFILE); firstButton()?.requestFocus() }
-        val go = button(Glyph.CHECK, "Open") {
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
+        col.addView(note(if (Platform.isFireTv(ctx)) "Open Fire TV Profiles?" else "Open ${Platform.name(ctx)} accounts and profiles?"),
+            LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dpi(4f) })
+        val back = { showTab(Tab.PROFILE); firstFocusable()?.requestFocus(); Unit }
+        val go = row("Open") {
             val acc = Platform.accountsIntent(ctx)
             if (Platform.isFireTv(ctx) || acc == null) open(FireIntents.profiles(), "com.amazon.ftv.profilepicker", "Choose Profiles")
             else open(acc, Platform.handler(ctx, acc))
         }
-        val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
-        row.addView(cancel); row.addView(go)
-        box.addView(row, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(14f) })
-        body.addView(box, LayoutParams(-1, -2))
-        linkUp()
-        subView = { showTab(Tab.PROFILE); firstButton()?.requestFocus() }
-        cancel.requestFocus()
-        invalidateDeep(panel)
+        col.addView(list(listOf(row("Cancel") { back() }, go)), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(14f) })
+        body.addView(col, LayoutParams(-1, -2))
+        showPage(back)
     }
 
-    private var watched: android.media.session.MediaController? = null
+    // ---------- Now Playing ----------
+
+    private var watched: MediaController? = null
+
+    private fun watch(c: MediaController) {
+        unwatchSession()
+        watched = c
+        try { c.registerCallback(sessionCb, ui) } catch (e: Throwable) { }
+    }
 
     private fun unwatchSession() {
         try { watched?.unregisterCallback(sessionCb) } catch (e: Throwable) { }
@@ -726,107 +837,177 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
     }
 
     private fun buildNowPlaying() {
-        val np = playing ?: NowPlaying.current(context)
-        if (np == null) { body.addView(TextView(context).apply { text = "Nothing is playing"; setTextColor(0xB3FFFFFF.toInt()) }); return }
-        unwatchSession()
-        watched = np.controller
-        try { np.controller.registerCallback(sessionCb, ui) } catch (e: Throwable) { }
+        val now = NowPlaying.current(context)
+        if (now == null) { body.addView(note("Nothing is playing"), LayoutParams(-2, -2).apply { leftMargin = dpi(4f) }); return }
+        watch(now.controller)
         val ctx = context
         val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
         val top = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val icon = try { ctx.packageManager.getApplicationIcon(np.pkg) } catch (e: Throwable) { null }
-        val artSize = dpi(76f)
-        top.addView(ArtView(ctx, artSize, np.art, icon), LinearLayout.LayoutParams(artSize, artSize))
+        val artSize = dpi(84f)
+        val art = ArtView(ctx, artSize)
+        top.addView(art, LinearLayout.LayoutParams(artSize, artSize))
         val text = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        val appName = try { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(np.pkg, 0)).toString() } catch (e: Throwable) { np.pkg }
-        text.addView(TextView(ctx).apply { this.text = appName.uppercase(); textSize = 11f; typeface = Fonts.medium; setTextColor(0x99FFFFFF.toInt()); letterSpacing = 0.06f })
-        text.addView(TextView(ctx).apply { this.text = np.title; textSize = 18f; typeface = Fonts.medium; setTextColor(Color.WHITE); maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
-        if (np.subtitle.isNotEmpty()) text.addView(TextView(ctx).apply { this.text = np.subtitle; textSize = 14f; setTextColor(0xB3FFFFFF.toInt()); maxLines = 1; ellipsize = TextUtils.TruncateAt.END })
+        val app = TextView(ctx).apply { textSize = 11f; typeface = Fonts.medium; setTextColor(0x99FFFFFF.toInt()); letterSpacing = 0.06f; maxLines = 1 }
+        val title = TextView(ctx).apply { textSize = 18f; typeface = Fonts.medium; setTextColor(Color.WHITE); maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
+        val sub = TextView(ctx).apply { textSize = 14f; setTextColor(0xB3FFFFFF.toInt()); maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
+        text.addView(app)
+        text.addView(title, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(2f) })
+        text.addView(sub, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(1f) })
         top.addView(text, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dpi(14f) })
         box.addView(top, LinearLayout.LayoutParams(-1, -2))
-        val tc = np.controller.transportControls
-        val prev = button(Glyph.PREV, "Previous") { tc.skipToPrevious() }
-        val play = button(if (np.playing) Glyph.PAUSE else Glyph.PLAY, if (np.playing) "Pause" else "Play") {
-            val p = NowPlaying.current(ctx)?.playing ?: np.playing
-            if (p) tc.pause() else tc.play()
+        val progress = ProgressLine(ctx)
+        box.addView(progress, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(14f) })
+        // Each press acts on the session shown now, which may have changed since the tab opened.
+        val size = dpi(46f)
+        val cellW = dpi(66f)
+        val prev = CcButton(ctx, size, cellW, Glyph.PREV, "", labelH = 0).apply {
+            id = View.generateViewId(); onClick = { watched?.transportControls?.skipToPrevious() }
         }
-        playButton = play
-        val next = button(Glyph.NEXT, "Next") { tc.skipToNext() }
+        val play = CcButton(ctx, size, cellW, Glyph.PAUSE, "", labelH = 0).apply { id = View.generateViewId(); onClick = { togglePlay() } }
+        val next = CcButton(ctx, size, cellW, Glyph.NEXT, "", labelH = 0).apply {
+            id = View.generateViewId(); onClick = { watched?.transportControls?.skipToNext() }
+        }
         val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_HORIZONTAL; clipChildren = false; clipToPadding = false }
         row.addView(prev); row.addView(play); row.addView(next)
-        box.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(12f) })
+        box.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(10f) })
         body.addView(box, LayoutParams(-1, -2))
+        topRow = listOf(prev, play, next)
+        entry = play
+        playing = PlayingViews(art, app, title, sub, progress, play)
+        fillPlaying(now)
     }
 
-    private fun refreshPlaying() {
-        if (!isOpen || tab != Tab.NOW_PLAYING) return
-        val np = NowPlaying.current(context) ?: return
-        playing = np
-        playButton?.let { it.glyph = if (np.playing) Glyph.PAUSE else Glyph.PLAY; it.label = if (np.playing) "Pause" else "Play" }
+    private fun togglePlay() {
+        val c = watched ?: return
+        val st = c.playbackState?.state
+        if (st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING) c.transportControls.pause() else c.transportControls.play()
     }
+
+    /**
+     * The session changed: the card follows its title, art and state, and the session playing now if another took
+     * over. A session between tracks (skipping, connecting) keeps the card as it is; one that [ended] with none
+     * left says so.
+     */
+    private fun refreshPlaying(ended: Boolean) {
+        if (!isOpen || playing == null) return
+        val now = NowPlaying.current(context)
+        if (now == null) {
+            if (ended) {
+                showTab(Tab.NOW_PLAYING)
+                tabButtons[Tab.NOW_PLAYING]?.requestFocus()
+            }
+            return
+        }
+        if (now.controller.sessionToken != watched?.sessionToken) watch(now.controller)
+        fillPlaying(now)
+    }
+
+    private fun fillPlaying(now: NowPlaying) {
+        val v = playing ?: return
+        if (v.pkg != now.pkg) {
+            v.pkg = now.pkg
+            v.app.update((appLabel(now.pkg) ?: now.pkg).uppercase())
+            v.icon = try { context.packageManager.getApplicationIcon(now.pkg) } catch (e: Throwable) { null }
+        }
+        v.title.update(now.title)
+        v.sub.update(now.subtitle)
+        v.sub.visibility = if (now.subtitle.isEmpty()) View.GONE else View.VISIBLE
+        v.art.set(now.art, v.icon)
+        v.play.glyph = if (now.playing) Glyph.PAUSE else Glyph.PLAY
+        updateProgress()
+    }
+
+    /** Elapsed and remaining time, ticking while it plays. Hidden for live streams and apps that give no duration. */
+    private fun updateProgress() {
+        val v = playing ?: return
+        val st = watched?.playbackState
+        val dur = watched?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        if (st == null || dur <= 0L || st.position < 0L) {
+            if (v.progress.visibility != View.GONE) v.progress.visibility = View.GONE
+            return
+        }
+        var pos = st.position
+        if (st.state == PlaybackState.STATE_PLAYING && st.lastPositionUpdateTime > 0L) {
+            pos += ((SystemClock.elapsedRealtime() - st.lastPositionUpdateTime) * st.playbackSpeed).toLong()
+        }
+        if (v.progress.visibility != View.VISIBLE) v.progress.visibility = View.VISIBLE
+        v.progress.set(pos.coerceIn(0L, dur), dur)
+    }
+
+    // ---------- VPN ----------
 
     private fun buildVpn() {
         val ctx = context
         // The first installed VPN app from a list of common ones (Android does not say which app owns the VPN).
         val pkg = VPN_APPS.firstOrNull { try { ctx.packageManager.getApplicationInfo(it, 0); true } catch (e: Throwable) { false } }
-        val appName = pkg?.let { p -> try { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(p, 0)).toString() } catch (e: Throwable) { null } }
-        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
-        box.addView(TextView(ctx).apply {
+        val appName = pkg?.let { appLabel(it) }
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
+        col.addView(TextView(ctx).apply {
             text = appName ?: "VPN"; textSize = 20f; typeface = Fonts.medium; setTextColor(Color.WHITE)
         }, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dpi(4f) })
-        box.addView(TextView(ctx).apply { text = "Connected"; textSize = 14f; setTextColor(0xFF7CE38B.toInt()) },
+        col.addView(TextView(ctx).apply { text = "Connected"; textSize = 14f; setTextColor(0xFF7CE38B.toInt()) },
             LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dpi(4f); topMargin = dpi(2f) })
         if (pkg != null) {
-            val b = button(Glyph.SHIELD, "Open ${appName ?: "VPN"}") { close(instant = true) { home.launch(pkg, null) } }
-            box.addView(b, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(12f) })
+            val open = row("Open ${appName ?: "VPN"}") { close(instant = true) { home.launch(pkg, null) } }
+            col.addView(list(listOf(open)), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(16f) })
         }
-        body.addView(box, LayoutParams(-1, -2))
+        body.addView(col, LayoutParams(-1, -2))
     }
 }
 
-/** Large round avatar for the Profile tab (the glass silhouette without a photo). */
-private class AvatarView(ctx: Context, private val size: Int, private val name: String) : View(ctx) {
-    private val p = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+/** Sets the text only when it changed: a TextView lays out again on every setText. */
+private fun TextView.update(s: String) { if (text.toString() != s) text = s }
+
+/** The Now Playing card's views, refreshed in place when the session changes. */
+private class PlayingViews(val art: ArtView, val app: TextView, val title: TextView, val sub: TextView, val progress: ProgressLine, val play: CcButton) {
+    var pkg: String? = null
+    var icon: android.graphics.drawable.Drawable? = null
+}
+
+/** A round avatar for the Profile tab: the photo, or the glass silhouette, made once. */
+private class AvatarView(ctx: Context, private val size: Int, img: Bitmap) : View(ctx) {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        val sc = maxOf(size / img.width.toFloat(), size / img.height.toFloat())
+        shader = BitmapShader(img, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+            setLocalMatrix(Matrix().apply { setScale(sc, sc); postTranslate((size - img.width * sc) / 2, (size - img.height * sc) / 2) })
+        }
+    }
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = ctx.dp(1f); color = 0x40FFFFFF }
-    private val t = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Fonts.medium; textSize = size * 0.42f; color = Color.WHITE; textAlign = Paint.Align.CENTER }
-    private val m = Matrix()
     override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(size, size)
     override fun onDraw(c: Canvas) {
         val r = size / 2f
-        val b = HomeShare.avatar
-        if (b != null) {
-            val sh = BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-            val sc = maxOf(size / b.width.toFloat(), size / b.height.toFloat())
-            m.setScale(sc, sc); m.postTranslate((size - b.width * sc) / 2, (size - b.height * sc) / 2)
-            sh.setLocalMatrix(m)
-            p.shader = sh
-            c.drawCircle(r, r, r, p)
-        } else {
-            Profile.drawSilhouette(c, r, r, r)
-        }
+        c.drawCircle(r, r, r, p)
         c.drawCircle(r, r, r - ring.strokeWidth / 2, ring)
     }
 }
 
-/** Now Playing artwork (or the app's icon on a dark tile). */
-private class ArtView(ctx: Context, private val size: Int, private val art: Bitmap?, private val icon: android.graphics.drawable.Drawable?) : View(ctx) {
+/** Now Playing artwork, or the app's icon on a glass tile. */
+private class ArtView(ctx: Context, private val size: Int) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val rect = RectF()
-    private val m = Matrix()
+    private var art: Bitmap? = null
+    private var icon: android.graphics.drawable.Drawable? = null
+
+    fun set(a: Bitmap?, i: android.graphics.drawable.Drawable?) {
+        if (a === art && i === icon) return
+        art = a; icon = i
+        p.shader = a?.let { b ->
+            val s = size.toFloat()
+            val sc = maxOf(s / b.width, s / b.height)
+            BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+                setLocalMatrix(Matrix().apply { setScale(sc, sc); postTranslate((s - b.width * sc) / 2, (s - b.height * sc) / 2) })
+            }
+        }
+        invalidate()
+    }
+
+    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(size, size)
+
     override fun onDraw(c: Canvas) {
         val s = size.toFloat()
-        val rad = dp(10f)
+        val rad = dp(12f)
         rect.set(0f, 0f, s, s)
-        if (art != null) {
-            val sh = BitmapShader(art, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-            val sc = maxOf(s / art.width, s / art.height)
-            m.setScale(sc, sc); m.postTranslate((s - art.width * sc) / 2, (s - art.height * sc) / 2)
-            sh.setLocalMatrix(m)
-            p.shader = sh
-            c.drawRoundRect(rect, rad, rad, p)
-            return
-        }
-        p.shader = null
+        if (p.shader != null) { p.color = Color.WHITE; c.drawRoundRect(rect, rad, rad, p); return }
         p.color = 0x33FFFFFF
         c.drawRoundRect(rect, rad, rad, p)
         icon?.let {
@@ -834,6 +1015,46 @@ private class ArtView(ctx: Context, private val size: Int, private val art: Bitm
             it.setBounds(i, i, size - i, size - i)
             it.draw(c)
         }
+    }
+}
+
+/** Now Playing progress: a thin track, with the elapsed time under its start and the time left under its end. */
+private class ProgressLine(ctx: Context) : View(ctx) {
+    private var pos = 0L
+    private var dur = 0L
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val t = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Fonts.medium; textSize = ctx.dp(11f); color = 0x99FFFFFF.toInt() }
+    private val r = RectF()
+
+    fun set(position: Long, duration: Long) {
+        if (position / 1000 == pos / 1000 && duration == dur) return
+        pos = position; dur = duration
+        invalidate()
+    }
+
+    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), dpi(26f))
+
+    override fun onDraw(c: Canvas) {
+        val bh = dp(4f)
+        val w = width.toFloat()
+        r.set(0f, 0f, w, bh)
+        p.color = 0x40FFFFFF
+        c.drawRoundRect(r, bh / 2, bh / 2, p)
+        val f = if (dur > 0L) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+        r.set(0f, 0f, maxOf(bh, w * f), bh)
+        p.color = 0xE6FFFFFF.toInt()
+        c.drawRoundRect(r, bh / 2, bh / 2, p)
+        val y = bh + dp(16f)
+        t.textAlign = Paint.Align.LEFT
+        c.drawText(time(pos), 0f, y, t)
+        t.textAlign = Paint.Align.RIGHT
+        c.drawText("-" + time(dur - pos), w, y, t)
+    }
+
+    private fun time(ms: Long): String {
+        val s = ms.coerceAtLeast(0L) / 1000
+        return if (s >= 3600) String.format(Locale.US, "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
+        else String.format(Locale.US, "%d:%02d", s / 60, s % 60)
     }
 }
 

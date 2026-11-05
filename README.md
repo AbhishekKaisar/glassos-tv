@@ -38,11 +38,12 @@ on the Android TV emulator.
   finds text over blurred art hard to read.
 - **Your own app icons**: put an image named after an app (`Netflix.png`, or its package name) in the TV's
   `Pictures/Glass/icons` folder. A wide image fills the tile like a TV banner; a square one sits centred on its own
-  colour. It shows when you come back to Home (needs the Storage permission).
-- **Control Center** (Menu, or OK on the pill): Sleep, Wi-Fi, Do Not Disturb, Audio, Inputs (on TVs with HDMI inputs,
-  such as Fire TV Edition TVs and the Fire TV Cube), a sleep timer, Controllers, Accessibility, Parental Controls
-  (Fire TV), Now Playing (while something plays) and VPN (while a VPN is on). On Android TV the buttons open the
-  standard Settings pages.
+  colour. It shows when you come back to Home (needs the Storage permission). When two apps have the same name, name
+  the image after the package instead.
+- **Control Center** (Menu, or OK on the pill): the time and date, with tabs for your profile, the controls (Sleep,
+  Wi-Fi, Do Not Disturb, Audio, Inputs on TVs with HDMI inputs such as Fire TV Edition TVs and the Fire TV Cube, a
+  sleep timer, Controllers, Accessibility, Parental Controls on Fire TV), Now Playing (while something plays, with
+  its progress) and VPN (while a VPN is on). On Android TV the buttons open the standard Settings pages.
 - **Your Home button**: on Android TV GlassOS can be the default home app. Where the TV does not allow that (Fire TV,
   and Android TV or Google TV builds that keep their own home), GlassOS notices the stock home and covers it, so
   the Home button still lands in GlassOS.

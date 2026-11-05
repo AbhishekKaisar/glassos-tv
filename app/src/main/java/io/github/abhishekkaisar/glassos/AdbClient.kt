@@ -73,8 +73,12 @@ class AdbClient private constructor(private val socket: Socket) : AutoCloseable 
 
     override fun close() { try { socket.close() } catch (e: Throwable) { } }
 
-    /** adbd accepted the TCP connection, then closed it during the handshake ([stage] says when). */
-    class Closed(val stage: String, cause: Throwable) : java.io.IOException("adbd closed the connection $stage", cause)
+    /**
+     * adbd accepted the TCP connection, then closed it during the handshake ([stage] says when). [quiet]: it did not
+     * close but stopped answering before any prompt, which Fire OS builds that block apps also do.
+     */
+    class Closed(val stage: String, cause: Throwable, val quiet: Boolean = false) :
+        java.io.IOException("adbd closed the connection $stage", cause)
 
     companion object {
         private const val CNXN = 0x4e584e43
@@ -100,10 +104,12 @@ class AdbClient private constructor(private val socket: Socket) : AutoCloseable 
          */
         fun connect(ctx: Context, host: String = "127.0.0.1", port: Int = 5555, onPrompt: () -> Unit = {}, promptTimeoutMs: Int = 90_000): AdbClient {
             val (priv, pub) = keys(ctx)
-            // One retry when adbd hangs up mid-handshake, in case it was still dropping an earlier connection.
+            // One retry when adbd hangs up mid-handshake, in case it was still dropping an earlier connection. Not
+            // after silence: that would only wait as long again.
             return try {
                 connectOnce(priv, pub, host, port, onPrompt, promptTimeoutMs)
             } catch (e: Closed) {
+                if (e.quiet) throw e
                 Thread.sleep(1500)
                 connectOnce(priv, pub, host, port, onPrompt, promptTimeoutMs)
             }
@@ -111,7 +117,12 @@ class AdbClient private constructor(private val socket: Socket) : AutoCloseable 
 
         private fun connectOnce(priv: PrivateKey, pub: ByteArray, host: String, port: Int, onPrompt: () -> Unit, promptTimeoutMs: Int): AdbClient {
             val s = Socket()
-            s.connect(InetSocketAddress(host, port), 3000)
+            // A refusal comes at once; silence on the TV's own port is adbd holding back, not debugging being off.
+            try { s.connect(InetSocketAddress(host, port), 3000) } catch (e: java.net.SocketTimeoutException) {
+                try { s.close() } catch (x: Throwable) { }
+                WLog.i("adb: no answer to the connection: $e")
+                throw Closed("with no answer to the connection", e, quiet = true)
+            }
             s.soTimeout = 10_000
             s.tcpNoDelay = true
             val c = AdbClient(s)
@@ -145,6 +156,11 @@ class AdbClient private constructor(private val socket: Socket) : AutoCloseable 
                 if (e is java.io.EOFException || (e is java.net.SocketException && e !is java.net.ConnectException)) {
                     WLog.i("adb: closed $stage: $e")
                     throw Closed(stage, e)
+                }
+                // Only a timeout after our key is the person not answering the prompt; before it, adbd went quiet.
+                if (e is java.net.SocketTimeoutException && stage != "after the key") {
+                    WLog.i("adb: no answer $stage: $e")
+                    throw Closed("$stage, with no answer", e, quiet = true)
                 }
                 throw e
             }

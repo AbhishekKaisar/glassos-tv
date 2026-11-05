@@ -380,6 +380,9 @@ class UserPill(ctx: Context) : View(ctx) {
     private val circle = Paint(Paint.ANTI_ALIAS_FLAG)
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val m = Matrix()
+    /** The glass silhouette at the avatar's size, drawn once: the pill redraws with every Top Shelf frame. */
+    private var silhouette: Bitmap? = null
+    private val bmpPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val timeText = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Fonts.medium; textSize = ctx.dp(13f); color = Color.WHITE
     }
@@ -494,7 +497,8 @@ class UserPill(ctx: Context) : View(ctx) {
             avatarPaint.shader.setLocalMatrix(m)
             c.drawCircle(cx, cy, av / 2, avatarPaint)
         } else {
-            Profile.drawSilhouette(c, cx, cy, av / 2)
+            val sb = silhouette ?: Profile.silhouette(Math.ceil(av.toDouble()).toInt()).also { silhouette = it }
+            c.drawBitmap(sb, cx - sb.width / 2f, cy - sb.height / 2f, bmpPaint)
         }
         ring.strokeWidth = dp(0.6f)
         ring.color = 0x33FFFFFF

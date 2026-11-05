@@ -89,15 +89,33 @@ object SleepTimer {
     private fun pi(ctx: Context) = PendingIntent.getBroadcast(ctx, 41, Intent(ctx, SleepReceiver::class.java), PendingIntent.FLAG_UPDATE_CURRENT)
     private fun sp(ctx: Context) = ctx.getSharedPreferences("glass", Context.MODE_PRIVATE)
 
-    /** Wall clock end time, or 0 when no timer runs. */
+    /** Wall clock end time, or 0 when no timer runs. A timer set before the TV last restarted lost its alarm. */
     fun endsAt(ctx: Context): Long {
         val t = sp(ctx).getLong("sleepAt", 0L)
-        return if (t > System.currentTimeMillis()) t else 0L
+        return if (t > System.currentTimeMillis() && !fromEarlierBoot(ctx)) t else 0L
+    }
+
+    /** Android's boot count (Android 7 and later), or -1. */
+    private fun bootCount(ctx: Context): Int = if (Build.VERSION.SDK_INT >= 24) try {
+        android.provider.Settings.Global.getInt(ctx.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
+    } catch (e: Throwable) { -1 } else -1
+
+    /**
+     * True when the saved timer was set in an earlier boot: a restart drops the alarm, not the saved end time. Without a
+     * boot count (Fire OS 5), uptime restarts at boot, so a timer set at a later uptime than now is from before.
+     */
+    private fun fromEarlierBoot(ctx: Context): Boolean {
+        val sp = sp(ctx)
+        val boot = bootCount(ctx)
+        val setIn = sp.getInt("sleepBoot", -1)
+        if (boot >= 0 && setIn >= 0) return boot != setIn
+        return sp.getLong("sleepUptime", 0L) > android.os.SystemClock.elapsedRealtime()
     }
 
     fun start(ctx: Context, ms: Long) {
         val end = System.currentTimeMillis() + ms
-        sp(ctx).edit().putLong("sleepAt", end).apply()
+        sp(ctx).edit().putLong("sleepAt", end).putInt("sleepBoot", bootCount(ctx))
+            .putLong("sleepUptime", android.os.SystemClock.elapsedRealtime()).apply()
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= 23) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, end, pi(ctx))
         else am.setExact(AlarmManager.RTC_WAKEUP, end, pi(ctx))
@@ -194,20 +212,24 @@ class NowPlaying(val controller: MediaController, val title: String, val subtitl
             (ctx.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager).getActiveSessions(MediaListener.component(ctx))
         } catch (e: Throwable) { emptyList() }
 
+        /** The session that is playing, else the first paused one: a paused app listed first must not hide one playing. */
         fun current(ctx: Context): NowPlaying? {
-            for (c in sessions(ctx)) {
-                val st = c.playbackState?.state ?: continue
-                val md = c.metadata ?: continue
-                val title = md.getString(MediaMetadata.METADATA_KEY_TITLE) ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE) ?: continue
-                val playing = st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING
-                if (!playing && st != PlaybackState.STATE_PAUSED) continue
-                val sub = md.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
-                    ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
-                val art = md.getBitmap(MediaMetadata.METADATA_KEY_ART) ?: md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                    ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-                return NowPlaying(c, title, sub, art, playing)
-            }
-            return null
+            val all = sessions(ctx).mapNotNull { of(it) }
+            return all.firstOrNull { it.playing } ?: all.firstOrNull()
+        }
+
+        /** [c] when it is playing, buffering or paused with a title, else null. */
+        private fun of(c: MediaController): NowPlaying? {
+            val st = c.playbackState?.state ?: return null
+            val md = c.metadata ?: return null
+            val title = md.getString(MediaMetadata.METADATA_KEY_TITLE) ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE) ?: return null
+            val playing = st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING
+            if (!playing && st != PlaybackState.STATE_PAUSED) return null
+            val sub = md.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+                ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
+            val art = md.getBitmap(MediaMetadata.METADATA_KEY_ART) ?: md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+            return NowPlaying(c, title, sub, art, playing)
         }
     }
 }
