@@ -211,3 +211,24 @@ class NowPlaying(val controller: MediaController, val title: String, val subtitl
         }
     }
 }
+
+/**
+ * The TV's HDMI and other passthrough inputs (Fire TV Edition TVs, the Fire TV Cube, Android TVs with inputs), for
+ * Control Center. Inputs are not installed apps, so the drawer cannot show them; each one opens in the TV's own player.
+ */
+object TvInputs {
+    class Input(val label: String, val intent: Intent)
+
+    /** Every passthrough input the TV's player can open, by the name the user gave it. Empty on sticks and boxes. */
+    fun list(ctx: Context): List<Input> = try {
+        val tim = ctx.getSystemService(Context.TV_INPUT_SERVICE) as? android.media.tv.TvInputManager
+        tim?.tvInputList.orEmpty()
+            .filter { it.isPassthroughInput && !(Build.VERSION.SDK_INT >= 24 && it.isHidden(ctx)) }
+            .mapNotNull { info ->
+                val i = Intent(Intent.ACTION_VIEW, android.media.tv.TvContract.buildChannelUriForPassthroughInput(info.id))
+                if (i.resolveActivity(ctx.packageManager) == null) return@mapNotNull null
+                val custom = if (Build.VERSION.SDK_INT >= 24) info.loadCustomLabel(ctx)?.toString() else null
+                Input(custom?.takeIf { it.isNotBlank() } ?: info.loadLabel(ctx).toString(), i)
+            }
+    } catch (e: Throwable) { emptyList() }
+}

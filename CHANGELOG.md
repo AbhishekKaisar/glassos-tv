@@ -38,6 +38,9 @@
   stock launcher is off (#28).
 - One-tap permissions on rooted TVs: Set Up asks the root manager and runs the same grants as root, with no ADB
   debugging needed, and falls back to the TV's ADB if root is refused (#9).
+- Control Center: an Inputs button on TVs with HDMI or other inputs (Fire TV Edition TVs, the Fire TV Cube, Android
+  TVs). It lists the inputs by the names given on the TV and opens one in the TV's own player; with a single input it
+  opens that one at once (#11).
 
 ## 1.0.2-beta (2026-10-23)
 
