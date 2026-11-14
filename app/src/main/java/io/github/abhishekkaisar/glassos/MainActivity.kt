@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.view.View
@@ -51,7 +52,7 @@ class MainActivity : Activity(), HomeHost {
     override fun onDestroy() {
         super.onDestroy()
         main.removeCallbacks(prepareOverlay)
-        demo?.release(); demo = null
+        if (Build.VERSION.SDK_INT >= 21) @Suppress("NewApi") { (demo as? android.media.session.MediaSession)?.release() }; demo = null
         if (HomeShare.main === home) HomeShare.main = null
         home.release()
         try { unregisterReceiver(pkgReceiver) } catch (e: Exception) { }
@@ -158,10 +159,13 @@ class MainActivity : Activity(), HomeHost {
         home.onHomeAgain(fromWatcher)
     }
 
-    private var demo: android.media.session.MediaSession? = null
+    // MediaSession requires API 21; this field and demoMedia() are only used in debug builds.
+    private var demo: Any? = null // actual type: android.media.session.MediaSession on API 21+
 
+    @Suppress("NewApi")
     private fun demoMedia(on: Boolean) {
-        demo?.release(); demo = null
+        if (Build.VERSION.SDK_INT < 21) return  // MediaSession requires API 21
+        (demo as? android.media.session.MediaSession)?.release(); demo = null
         if (!on) return
         val s = android.media.session.MediaSession(this, "glass-demo")
         s.setMetadata(android.media.MediaMetadata.Builder()

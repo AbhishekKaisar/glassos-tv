@@ -46,7 +46,9 @@ class HomeWatcher : Service() {
         override fun run() {
             try { check() } catch (e: Throwable) { }
             // Fast while the screen is on, slow while it is off.
-            handler.postDelayed(this, if (power.isInteractive) POLL_MS else IDLE_POLL_MS)
+            @Suppress("DEPRECATION")
+            val screenOn = if (Build.VERSION.SDK_INT >= 20) power.isInteractive else power.isScreenOn
+            handler.postDelayed(this, if (screenOn) POLL_MS else IDLE_POLL_MS)
         }
     }
 
