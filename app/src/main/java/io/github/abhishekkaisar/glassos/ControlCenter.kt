@@ -832,11 +832,13 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
     private fun watch(c: MediaController) {
         unwatchSession()
         watched = c
-        try { c.registerCallback(sessionCb, ui) } catch (e: Throwable) { }
+        val cb = sessionCb ?: return
+        try { c.registerCallback(cb, ui) } catch (e: Throwable) { }
     }
 
     private fun unwatchSession() {
-        try { watched?.unregisterCallback(sessionCb) } catch (e: Throwable) { }
+        val cb = sessionCb
+        if (cb != null) try { watched?.unregisterCallback(cb) } catch (e: Throwable) { }
         watched = null
     }
 
