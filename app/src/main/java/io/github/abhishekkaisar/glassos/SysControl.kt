@@ -117,8 +117,10 @@ object SleepTimer {
         sp(ctx).edit().putLong("sleepAt", end).putInt("sleepBoot", bootCount(ctx))
             .putLong("sleepUptime", android.os.SystemClock.elapsedRealtime()).apply()
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        // setExact() requires API 19; set() (inexact) is used as a fallback on API 17-18.
         if (Build.VERSION.SDK_INT >= 23) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, end, pi(ctx))
-        else am.setExact(AlarmManager.RTC_WAKEUP, end, pi(ctx))
+        else if (Build.VERSION.SDK_INT >= 19) am.setExact(AlarmManager.RTC_WAKEUP, end, pi(ctx))
+        else @Suppress("DEPRECATION") am.set(AlarmManager.RTC_WAKEUP, end, pi(ctx))
         WLog.i("sleep timer set for ${ms / 1000} s")
     }
 

@@ -15,6 +15,7 @@ import android.graphics.Shader
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.PlaybackState
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -411,11 +412,14 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
     /** A page is shown; Back runs this to return to the tab it came from. */
     private var subView: (() -> Unit)? = null
     private val silhouette by lazy { Profile.silhouette(dpi(64f)) }
-    private val sessionCb = object : MediaController.Callback() {
+    // MediaController.Callback requires API 21; on older devices the Now Playing tab is never shown
+    // because NowPlaying.current() returns null (MediaSessionManager does not exist below API 21).
+    @Suppress("NewApi")
+    private val sessionCb: MediaController.Callback? = if (Build.VERSION.SDK_INT >= 21) object : MediaController.Callback() {
         override fun onPlaybackStateChanged(state: PlaybackState?) { ui.post { refreshPlaying(false) } }
         override fun onMetadataChanged(metadata: MediaMetadata?) { ui.post { refreshPlaying(false) } }
         override fun onSessionDestroyed() { ui.post { refreshPlaying(true) } }
-    }
+    } else null
 
     private val tick = object : Runnable {
         override fun run() {
@@ -828,11 +832,13 @@ class ControlCenter(private val home: HomeScreen) : FrameLayout(home.ctx) {
     private fun watch(c: MediaController) {
         unwatchSession()
         watched = c
-        try { c.registerCallback(sessionCb, ui) } catch (e: Throwable) { }
+        val cb = sessionCb ?: return
+        try { c.registerCallback(cb, ui) } catch (e: Throwable) { }
     }
 
     private fun unwatchSession() {
-        try { watched?.unregisterCallback(sessionCb) } catch (e: Throwable) { }
+        val cb = sessionCb
+        if (cb != null) try { watched?.unregisterCallback(cb) } catch (e: Throwable) { }
         watched = null
     }
 

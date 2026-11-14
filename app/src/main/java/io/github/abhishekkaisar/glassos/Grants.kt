@@ -90,6 +90,8 @@ object Grants {
     }
 
     private fun listenerCommand(ctx: Context, shell: (String) -> String): String {
+        // NotificationListenerService requires API 18; return a no-op string on older devices.
+        if (Build.VERSION.SDK_INT < 18) return "echo 'notification listener not supported on API < 18'"
         val comp = MediaListener.component(ctx).flattenToString()
         if (Build.VERSION.SDK_INT >= 26) return "cmd notification allow_listener $comp"
         val cur = try { shell("settings get secure enabled_notification_listeners").trim() } catch (e: Throwable) { "" }
@@ -101,8 +103,11 @@ object Grants {
     fun manualCommands(ctx: Context): List<String> = listOfNotNull(
         "adb shell appops set ${pkg(ctx)} GET_USAGE_STATS allow",
         "adb shell appops set ${pkg(ctx)} SYSTEM_ALERT_WINDOW allow",
-        if (Build.VERSION.SDK_INT >= 26) "adb shell cmd notification allow_listener ${MediaListener.component(ctx).flattenToString()}"
-        else "adb shell settings put secure enabled_notification_listeners ${MediaListener.component(ctx).flattenToString()}",
+        // NotificationListenerService requires API 18; skip the notification listener command on older devices.
+        if (Build.VERSION.SDK_INT >= 18) {
+            if (Build.VERSION.SDK_INT >= 26) "adb shell cmd notification allow_listener ${MediaListener.component(ctx).flattenToString()}"
+            else "adb shell settings put secure enabled_notification_listeners ${MediaListener.component(ctx).flattenToString()}"
+        } else null,
         if (Power.supported(ctx)) "adb shell dpm set-active-admin ${Power.admin(ctx).flattenToString()}" else null,
         "adb shell pm grant ${pkg(ctx)} android.permission.READ_EXTERNAL_STORAGE"
     )

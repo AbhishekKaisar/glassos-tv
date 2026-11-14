@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:ignore="NewApi" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -21,7 +21,8 @@
         android:icon="@mipmap/ic_launcher"
         android:label="GlassOS"
         android:largeHeap="false"
-        android:theme="@style/GlassTheme">
+        android:theme="@style/GlassTheme"
+        tools:ignore="NewApi">
 
         <activity
             android:name=".MainActivity"
@@ -31,7 +32,8 @@
             android:launchMode="singleTask"
             android:resumeWhilePausing="true"
             android:screenOrientation="landscape"
-            android:stateNotNeeded="true">
+            android:stateNotNeeded="true"
+            tools:ignore="NewApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -55,7 +57,8 @@
             android:name=".BootReceiver"
             android:directBootAware="true"
             android:enabled="true"
-            android:exported="true">
+            android:exported="true"
+            tools:targetApi="24">
             <intent-filter android:priority="999">
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
